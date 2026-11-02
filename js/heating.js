@@ -1,7 +1,7 @@
 // Issiqlik yo'qotish, radiator tanlash, quvur yo'li va o'zi aylanish tekshiruvi.
 import { ROOM_TYPES, WALL_MATERIALS } from "./model.js";
-import { SIDES, extLength, isExterior, sideInfo, openingRect } from "./geometry.js";
-import { buildGrid, routeTree, segLen } from "./route.js";
+import { SIDES, coverage, extLength, floorList, floorOf, fv, isExterior, sideInfo, openingRect } from "./geometry.js";
+import { multiFloor, segLen } from "./route.js";
 
 const U_WIN = 1.6, U_DOOR = 2, U_CEIL = 0.5, U_FLOOR = 0.6, T_GROUND = 5, CEIL_K = 0.9;
 const Q70 = 160, SEC_W = 9.3, SEC_L = 1.45, MAX_SEC = 14;
@@ -22,9 +22,13 @@ function fric(gLh, idMm) {
   return (f / d) * 975 * v * v / 2;
 }
 
-function roomLoss(p, r, wallU) {
+function roomLoss(all, r, wallU) {
+  const p = fv(all, floorOf(r)), f = floorOf(r);
   const t = ROOM_TYPES[r.type];
   const A = (r.w * r.d) / 1e4, h = p.h / 100, dT = t.ti - p.tout;
+  // Ustida isitiladigan qavat bo'lsa shiftdan, ostida bo'lsa poldan issiqlik yo'qolmaydi
+  const openTop = f + 1 < (all.floors || 1) ? 1 - coverage(all, r, f + 1) : 1;
+  const openBottom = f > 0 ? 1 - coverage(all, r, f - 1) : 1;
   const ops = p.openings.filter((o) => o.room === r.id || adjacent(p, o, r));
   let Awin = 0, Adoor = 0;
   for (const o of ops) {
@@ -42,8 +46,8 @@ function roomLoss(p, r, wallU) {
     wall: Awall * wallU * dT,
     win: Awin * U_WIN * dT,
     door: Adoor * U_DOOR * dT,
-    ceil: A * U_CEIL * CEIL_K * dT,
-    floor: A * U_FLOOR * Math.max(0, t.ti - T_GROUND),
+    ceil: A * openTop * U_CEIL * CEIL_K * dT,
+    floor: f === 0 ? A * U_FLOOR * Math.max(0, t.ti - T_GROUND) : A * openBottom * U_CEIL * dT,
     air: 0.34 * A * h * t.n * dT,
   };
   return { A, parts, Q: Object.values(parts).reduce((a, b) => a + b, 0) };
@@ -83,13 +87,13 @@ export function computeHeating(p) {
   const warnings = [];
 
   for (const r of p.rooms) {
-    const t = ROOM_TYPES[r.type];
-    if (!t.heated) continue;
+    const t = ROOM_TYPES[r.type], f = floorOf(r);
+    if (!t.heated || f >= (p.floors || 1)) continue;
     const l = roomLoss(p, r, wallU);
     for (const k in totals) totals[k] += l.parts[k];
     const qs = Q70 * Math.pow((tm - t.ti) / 70, 1.3);
     const need = Math.max(4, Math.ceil(l.Q / qs));
-    const spots = radiatorSpots(p, r);
+    const spots = radiatorSpots(fv(p, f), r);
     const windows = spots.filter((s) => s.rank === 0).length;
     const units = Math.max(1, windows, Math.ceil(need / MAX_SEC));
     const chosen = [];
@@ -104,11 +108,11 @@ export function computeHeating(p) {
       const s = sideInfo(r, c.side);
       const [x, y] = s.at(c.off);
       rads.push({
-        no: rads.length + 1, room: r, side: c.side, sec, w: sec * SEC_W, power: sec * qs,
+        no: rads.length + 1, room: r, floor: f, side: c.side, sec, w: sec * SEC_W, power: sec * qs,
         x: x - s.nx * 9, y: y - s.ny * 9, load: sec * qs, horiz: c.side === "n" || c.side === "s",
       });
     }
-    rooms.push({ r, A: l.A, Q: l.Q, sec, units: chosen.length, ti: t.ti });
+    rooms.push({ r, floor: f, A: l.A, Q: l.Q, sec, units: chosen.length, ti: t.ti });
   }
 
   const Q = rooms.reduce((a, x) => a + x.Q, 0);
@@ -129,8 +133,10 @@ export function computeHeating(p) {
     if (rads.length) warnings.push("Qozon qo'yilmagan, quvurlar chizilmadi.");
     return out;
   }
-  const net = routeTree(buildGrid(p), { x: boiler.x, y: boiler.y }, rads);
+  const net = multiFloor(p, boiler, rads);
   if (!net.ok) warnings.push("Ba'zi radiatorlarga quvur yo'li topilmadi.");
+  out.risers = net.risers;
+  if (net.risers.some((q) => q.auto)) warnings.push("Stoyak avtomatik joylandi. Reja bo'limida o'zingiz qo'yishingiz mumkin.");
 
   const size = (w, grav) => {
     const g = grav ? w / (1.163 * 25) : flow(w);
@@ -143,6 +149,11 @@ export function computeHeating(p) {
     sumL[d.dn] = (sumL[d.dn] || 0) + len * 2;
     return { ...s, dn: d.dn, id: d.id, len };
   });
+  for (const q of net.risers) {
+    const d = size(q.load, grav);
+    sumL[d.dn] = (sumL[d.dn] || 0) + q.len * 2;
+    q.dn = d.dn; q.id = d.id;
+  }
   out.lens = sumL;
   out.pipeTotal = Object.values(sumL).reduce((a, b) => a + b, 0);
   // Qozon oldidagi qism po'lat, shuncha PPR kamayadi
@@ -229,6 +240,7 @@ export function heatingBom(p, h) {
   }
   rows.push({ g: "Isitish ishi", k: "l_boiler", name: "Qozonni o'rnatish va ulash", unit: "dona", qty: 1, labor: true });
   rows.push({ g: "Isitish ishi", k: "l_rad", name: "Radiatorni osish va ulash", unit: "dona", qty: h.rads.length, labor: true });
+  if (h.risers?.length) rows.push({ g: "Isitish ishi", k: "l_riser", name: "Qavatlararo stoyak", unit: "dona", qty: h.risers.length * 2, labor: true });
   rows.push({ g: "Isitish ishi", k: "l_pipe", name: "Quvur yotqizish", unit: "m", qty: Math.ceil((h.pipeTotal || 0) * 1.1), labor: true });
   rows.push({ g: "Isitish ishi", k: "l_start", name: "Sinov va ishga tushirish", unit: "dona", qty: 1, labor: true });
   return rows;

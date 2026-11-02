@@ -1,5 +1,5 @@
 // Quvur va kabellarni to'r bo'ylab yo'naltirish. Devor yonidan yuradi, devorni kamroq teshadi.
-import { bounds, inRoom, openingRect } from "./geometry.js";
+import { bounds, floorList, floorOf, fv, inRoom, openingRect } from "./geometry.js";
 
 const SIZE = 20;
 
@@ -129,4 +129,46 @@ function simplify(pts) {
   return out;
 }
 
-export const segLen = (s) => s.pts.slice(1).reduce((a, q, i) => a + Math.hypot(q[0] - s.pts[i][0], q[1] - s.pts[i][1]), 0) / 100;
+export const segLen = (s) => s.len ?? s.pts.slice(1).reduce((a, q, i) => a + Math.hypot(q[0] - s.pts[i][0], q[1] - s.pts[i][1]), 0) / 100;
+
+// Stoyak joyi: qo'yilgan bo'lsa o'sha, bo'lmasa ildizga eng yaqin xona burchagi
+export function riserPoint(p, root, f) {
+  const set = p.items.find((i) => i.kind === "riser");
+  if (set) return { x: set.x, y: set.y, auto: false };
+  let best = null;
+  for (const r of fv(p, f).rooms) {
+    const x = Math.max(r.x + 15, Math.min(r.x + r.w - 15, root.x)), y = Math.max(r.y + 15, Math.min(r.y + r.d - 15, root.y));
+    const d = Math.hypot(x - root.x, y - root.y);
+    if (!best || d < best.d) best = { x, y, d, auto: true };
+  }
+  return best || { x: root.x, y: root.y, auto: true };
+}
+
+// Ildizdan barcha qavatlardagi nuqtalargacha: har qavatda daraxt, qavatlar orasi stoyak orqali
+export function multiFloor(p, root, targets, opts = {}, cache = new Map()) {
+  const base = floorOf(root), height = (p.h + (p.slab ?? 30)) / 100;
+  const grid = (f) => {
+    const key = f + JSON.stringify(opts);
+    if (!cache.has(key)) cache.set(key, buildGrid(fv(p, f), opts));
+    return cache.get(key);
+  };
+  const segs = [], risers = [];
+  let ok = true, length = 0;
+  for (const f of floorList(p)) {
+    if (f === base) continue;
+    const list = targets.filter((t) => floorOf(t) === f);
+    if (!list.length) continue;
+    const pt = riserPoint(p, root, f);
+    const load = list.reduce((a, t) => a + (t.load || 0), 0);
+    const r = routeTree(grid(f), pt, list);
+    ok = ok && r.ok; length += r.length + height * Math.abs(f - base);
+    segs.push(...r.segs.map((s) => ({ ...s, floor: f })));
+    risers.push({ x: pt.x, y: pt.y, from: base, to: f, load, len: height * Math.abs(f - base), auto: pt.auto });
+  }
+  const here = targets.filter((t) => floorOf(t) === base);
+  const all = [...here, ...risers.map((q) => ({ x: q.x, y: q.y, load: q.load }))];
+  const r = routeTree(grid(base), root, all);
+  ok = ok && r.ok; length += r.length;
+  segs.push(...r.segs.map((s) => ({ ...s, floor: base })));
+  return { segs, risers, ok, length };
+}

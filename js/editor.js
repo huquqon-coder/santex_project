@@ -1,17 +1,24 @@
 // 2D reja muharriri (SVG). Tahrirlash xona, ochilma va jihozlar ustida ishlaydi.
 import { ITEM_KINDS, ROOM_TYPES, item, opening, room } from "./model.js";
-import { bounds, nearestSide, openingRect, roomAt } from "./geometry.js";
+import { bounds, floorOf, fv, nearestSide, openingRect, roomAt } from "./geometry.js";
 
 const SNAP = 10;
 const snap = (v) => Math.round(v / SNAP) * SNAP;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const ONE_ONLY = new Set(["boiler", "panel", "waterin", "sewerout", "heater"]);
-const TAB_GROUP = { heat: "heat", elec: "elec", plumb: "plumb" };
+const TAB_GROUP = { plan: "build", heat: "heat", elec: "elec", plumb: "plumb" };
+const onFloor = (s, f) => floorOf(s) === f;
 
 // Rejadagi shartli belgilar
 function symbol(kind, k) {
   const w = k.w / 2, d = k.d / 2, c = k.color;
   switch (kind) {
+    case "stairs": {
+      let s = `<path d="M0 ${d - 12}V${-d + 20}M-12 ${-d + 32}L0 ${-d + 14}L12 ${-d + 32}"/>`;
+      for (let y = -d + 25; y < d; y += 25) s += `<path d="M${-w} ${y}H${w}"/>`;
+      return s;
+    }
+    case "riser": return `<circle r="${w - 6}"/><path d="M-9 -9L9 9M9 -9L-9 9"/>`;
     case "sink": return `<ellipse cx="0" cy="3" rx="${w - 6}" ry="${d - 6}"/><circle cx="0" cy="3" r="3"/>`;
     case "toilet": return `<rect x="${-w}" y="${-d}" width="${k.w}" height="16"/><ellipse cx="0" cy="10" rx="${w - 3}" ry="${d - 14}"/>`;
     case "bathtub": return `<rect x="${-w + 7}" y="${-d + 7}" width="${k.w - 14}" height="${k.d - 14}" rx="22"/><circle cx="${w - 24}" cy="0" r="4"/>`;
@@ -86,15 +93,15 @@ export class Editor {
     this.applyVB();
   }
   down(e) {
-    const c = this.ctx, q = this.pt(e), tool = c.tool;
+    const c = this.ctx, q = this.pt(e), tool = c.tool, v = fv(c.p, c.floor);
     this.svg.setPointerCapture(e.pointerId);
     const onHandle = e.target.closest('[data-t="handle"]');
-    if (tool === "room" && !onHandle && !roomAt(c.p, q.x, q.y)) {
+    if (tool === "room" && !onHandle && !roomAt(v, q.x, q.y)) {
       this.drag = { type: "new", x0: this.edge(q.x, "x"), y0: this.edge(q.y, "y") };
       return;
     }
     if (tool === "door" || tool === "window" || tool === "entry") {
-      const s = nearestSide(c.p, q.x, q.y);
+      const s = nearestSide(v, q.x, q.y);
       if (s) {
         c.commit();
         const o = opening(tool, s.room.id, s.side, s.off);
@@ -106,6 +113,7 @@ export class Editor {
       c.commit();
       if (ONE_ONLY.has(tool)) c.p.items = c.p.items.filter((i) => i.kind !== tool);
       const it = item(tool, snap(q.x), snap(q.y));
+      it.floor = c.floor;
       c.p.items.push(it); c.select({ type: "item", id: it.id }); c.changed();
       return;
     }
@@ -177,6 +185,7 @@ export class Editor {
       if (v && v.w >= 100 && v.d >= 100) {
         this.ctx.commit();
         const r = room("living", v.x, v.y, v.w, v.d);
+        r.floor = this.ctx.floor;
         this.ctx.p.rooms.push(r); this.ctx.select({ type: "room", id: r.id }); this.ctx.changed();
       } else this.draw();
       return;
@@ -222,9 +231,12 @@ export class Editor {
   }
 
   draw() {
-    const { p, tab, sel, res } = this.ctx;
+    const { tab, sel, res, floor } = this.ctx;
+    const p = fv(this.ctx.p, floor);
     const t = p.wallT, o = [];
-    const b = bounds(p);
+    const b = bounds(p.rooms.length ? p : this.ctx.p);
+    // Pastki qavat devorlari mo'ljal uchun xira ko'rinadi
+    if (floor > 0) for (const r of fv(this.ctx.p, floor - 1).rooms) o.push(`<rect class="under" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.d}"/>`);
     for (const r of p.rooms) o.push(`<rect class="w" x="${r.x - t}" y="${r.y - t}" width="${r.w + 2 * t}" height="${r.d + 2 * t}"/>`);
     for (const r of p.rooms) {
       const s = sel?.type === "room" && sel.id === r.id;
@@ -250,7 +262,7 @@ export class Editor {
       const attr = on ? `data-t="item" data-id="${i.id}"` : "";
       const cls = `it ${on ? "" : "dim"} ${s ? "s" : ""}`;
       const hit = k.round ? 2 + k.w / 2 : 0;
-      o.push(`<g class="${cls}" ${attr} transform="translate(${i.x} ${i.y})"><title>${k.name}</title>` +
+      o.push(`<g class="${cls}" ${attr} transform="translate(${i.x} ${i.y})${i.rot ? " rotate(90)" : ""}"><title>${k.name}</title>` +
         (hit ? `<circle class="bg" r="${hit}"/>` : `<rect class="bg" x="${-k.w / 2}" y="${-k.d / 2}" width="${k.w}" height="${k.d}"/>`) +
         symbol(i.kind, k) + `</g>`);
     }
@@ -283,23 +295,27 @@ export class Editor {
     return `<polyline class="${cls}" points="${d}" ${w ? `style="stroke-width:${w}"` : ""}/>`;
   }
   heat(o, h) {
-    for (const s of h.segs) { o.push(this.line(s.pts, "ph", -5)); o.push(this.line(s.pts, "pc", 5)); }
-    for (const r of h.rads) {
+    const f = this.ctx.floor;
+    for (const s of h.segs.filter((q) => onFloor(q, f))) { o.push(this.line(s.pts, "ph", -5)); o.push(this.line(s.pts, "pc", 5)); }
+    for (const q of h.risers || []) o.push(`<circle class="rs2" cx="${q.x}" cy="${q.y}" r="13"><title>Stoyak</title></circle>`);
+    for (const r of h.rads.filter((q) => onFloor(q, f))) {
       const W = r.horiz ? r.w : 14, D = r.horiz ? 14 : r.w;
       o.push(`<rect class="rad" x="${r.x - W / 2}" y="${r.y - D / 2}" width="${W}" height="${D}"><title>R${r.no}: ${r.sec} seksiya, ${Math.round(r.power)} W</title></rect>`);
       o.push(`<text class="rl" x="${r.x}" y="${r.y + (r.horiz ? -18 : 5)}">${r.sec}s</text>`);
     }
   }
   elec(o, e) {
-    for (const s of e.segs) o.push(this.line(s.pts, s.branch ? "pb" : "pe"));
+    const f = this.ctx.floor;
+    for (const s of e.segs.filter((q) => onFloor(q, f))) o.push(this.line(s.pts, s.branch ? "pb" : "pe"));
     for (const b of e.boxes) {
-      if (b.manual) continue;
+      if (b.manual || !onFloor(b, f)) continue;
       o.push(`<rect class="jb" x="${b.x - 11}" y="${b.y - 11}" width="22" height="22"><title>${esc(b.title)}</title></rect>`);
     }
   }
   plumb(o, w) {
-    for (const s of w.sewer) o.push(this.line(s.pts, "ps", 0, s.dn === 110 ? 9 : 5));
-    for (const s of w.cold) o.push(this.line(s.pts, "pc", -7));
-    for (const s of w.hot) o.push(this.line(s.pts, "ph", 7));
+    const f = this.ctx.floor;
+    for (const s of w.sewer.filter((q) => onFloor(q, f))) o.push(this.line(s.pts, "ps", 0, s.dn === 110 ? 9 : 5));
+    for (const s of w.cold.filter((q) => onFloor(q, f))) o.push(this.line(s.pts, "pc", -7));
+    for (const s of w.hot.filter((q) => onFloor(q, f))) o.push(this.line(s.pts, "ph", 7));
   }
 }

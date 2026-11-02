@@ -1,6 +1,6 @@
 // 3D ko'rinish. Ma'lumot rejadan olinadi, o'lchamlar metrga o'tkaziladi.
 import { ITEM_KINDS, ROOM_TYPES } from "./model.js";
-import { bounds, nearestWall, openingRect, roomAt, sideInfo, wallBoxes } from "./geometry.js";
+import { bounds, floorList, floorOf, fv, nearestWall, openingRect, roomAt, sideInfo, wallBoxes } from "./geometry.js";
 import * as P from "./models3d.js";
 
 const THREE = window.THREE;
@@ -63,7 +63,7 @@ export class View3D {
       roof: new THREE.MeshStandardMaterial({ map: this.tex.roof, side: THREE.DoubleSide, roughness: 0.8 }),
       ghost: new THREE.MeshStandardMaterial({ color: 0x8a9aa2, transparent: true, opacity: 0.14, depthWrite: false }),
     };
-    this.group = new THREE.Group(); this.scene.add(this.group);
+    this.root = this.group = new THREE.Group(); this.scene.add(this.root);
     new ResizeObserver(() => this.resize()).observe(el);
     this.resize();
     const loop = () => { this.controls.update(); this.renderer.render(this.scene, this.camera); requestAnimationFrame(loop); };
@@ -118,18 +118,74 @@ export class View3D {
     g.rotation.x = -Math.PI / 2; g.position.y = -0.3; g.receiveShadow = true;
     this.groundMesh = g; this.scene.add(g);
   }
-  update(p, res, opt) {
-    while (this.group.children.length) {
-      const o = this.group.children.pop();
+  update(all, res, opt) {
+    while (this.root.children.length) {
+      const o = this.root.children.pop();
       o.traverse?.((n) => n.geometry?.dispose());
     }
+    const H = m(all.h), slab = m(all.slab ?? 30), step = H + slab, list = floorList(all);
+    const shown = opt.floor === "all" ? list : [+opt.floor];
+    const last = shown[shown.length - 1];
+    const boiler = res.heat.boiler;
+    const base = boiler ? floorOf(boiler) : 0;
+    const pitRoom = boiler && all.circ !== "pump" ? roomAt(fv(all, base), boiler.x, boiler.y) : null;
+    this.ground(null);
+    for (const f of shown) {
+      const g = new THREE.Group(); g.position.y = f * step;
+      this.root.add(g); this.group = g;
+      this.floorScene(fv(all, f), all, res, opt, f, f === last, f === base ? pitRoom : null, slab);
+    }
+    this.group = this.root;
+    this.risers(res, opt, step, H, shown);
+  }
+  risers(res, opt, step, H, shown) {
+    const V = (x, y, z) => new THREE.Vector3(m(x), y, m(z));
+    const draw = (q, y, mat, r, off = 0) => {
+      if (!shown.includes(q.from) || !shown.includes(q.to)) return;
+      this.tube(V(q.x + off, q.from * step + y, q.y + off), V(q.x + off, q.to * step + y, q.y + off), r, mat);
+    };
+    if (opt.heat) for (const q of res.heat.risers || []) {
+      const r = Math.min(0.03, (q.id || 30) / 2000 + 0.006);
+      draw(q, res.heat.topSupply ? H + 0.15 : 0.17, this.mat.hot, r, -5);
+      draw(q, 0.08, this.mat.blue, r, 5);
+    }
+    if (opt.elec) for (const q of res.elec.risers || []) draw(q, H - 0.05, this.mat.cable, 0.009);
+    if (opt.plumb) for (const q of res.plumb.risers || []) {
+      if (q.kind === "sewer") draw(q, 0.05, this.mat.sewer, 0.055, 12);
+      else draw(q, 0.3, q.kind === "cold" ? this.mat.blue : this.mat.hot, 0.012, q.kind === "cold" ? -7 : 7);
+    }
+  }
+  // Yopmada zina teshigini qoldirib plita chizadi
+  slabPlate(rooms, y, th, mat, all, f) {
+    const stairs = f > 0 ? all.items.filter((i) => i.kind === "stairs" && floorOf(i) < f) : [];
+    for (const r of rooms) {
+      let rects = [[r.x, r.y, r.w, r.d]];
+      for (const s of stairs) {
+        const k = ITEM_KINDS.stairs, w = s.rot ? k.d : k.w, d = s.rot ? k.w : k.d;
+        const hx0 = s.x - w / 2, hy0 = s.y - d / 2, hx1 = hx0 + w, hy1 = hy0 + d;
+        rects = rects.flatMap(([x, yy, rw, rd]) => {
+          const x1 = x + rw, y1 = yy + rd;
+          if (hx1 <= x || hx0 >= x1 || hy1 <= yy || hy0 >= y1) return [[x, yy, rw, rd]];
+          const out = [];
+          if (hy0 > yy) out.push([x, yy, rw, hy0 - yy]);
+          if (hy1 < y1) out.push([x, hy1, rw, y1 - hy1]);
+          const a = Math.max(yy, hy0), b = Math.min(y1, hy1);
+          if (hx0 > x) out.push([x, a, hx0 - x, b - a]);
+          if (hx1 < x1) out.push([hx1, a, x1 - hx1, b - a]);
+          return out;
+        });
+      }
+      for (const [x, yy, rw, rd] of rects) this.box(m(x), y, m(yy), m(rw), th, m(rd), mat);
+    }
+  }
+  floorScene(p, all, res, opt, f, isLast, pitRoom, slab) {
     const H = m(p.h), mode = opt.mode, ghost = mode === "ghost", W = ghost ? this.mat.ghost : this.mat.wall;
-    const wallH = mode === "cut" ? 1.2 : H;
-    const heat = res.heat, boiler = heat.boiler;
-    const pitRoom = boiler && p.circ !== "pump" ? roomAt(p, boiler.x, boiler.y) : null;
+    const wallH = mode === "cut" && isLast ? 1.2 : H;
+    const heat = res.heat;
     const pitD = pitRoom ? m(p.pit) : 0;
+    const under = f > 0 ? slab : 0;
 
-    for (const b of wallBoxes(p)) this.box(m(b.x), 0, m(b.y), m(b.w), wallH, m(b.d), W);
+    for (const b of wallBoxes(p)) this.box(m(b.x), -under, m(b.y), m(b.w), wallH + under, m(b.d), W);
     for (const o of p.openings) {
       const q = openingRect(p, o); if (!q) continue;
       const [x, z, w, d] = [m(q.x), m(q.y), m(q.w), m(q.d)];
@@ -153,8 +209,10 @@ export class View3D {
         const t = this.tex[key].clone(); t.needsUpdate = true; t.repeat.set(m(r.w) / 1.2, m(r.d) / 1.2);
         mat = new THREE.MeshStandardMaterial({ map: t, roughness: key === "wood" ? 0.7 : 0.35 });
       }
-      this.box(m(r.x), lowered - 0.02, m(r.y), m(r.w), 0.02, m(r.d), mat);
+      if (f === 0) this.box(m(r.x), lowered - 0.02, m(r.y), m(r.w), 0.02, m(r.d), mat);
+      else this.slabPlate([r], -0.02, 0.02, mat, all, f);
     }
+    if (f > 0) this.slabPlate(p.rooms, -slab, slab - 0.02, ghost ? this.mat.ghost : this.mat.cold, all, f);
     // Qozon chuquri: tashqi devorlar pastga davom etadi, tushish zinasi bilan
     if (pitRoom) {
       const r = pitRoom, t = m(p.wallT), [x, y, w, d] = [m(r.x), m(r.y), m(r.w), m(r.d)];
@@ -165,10 +223,18 @@ export class View3D {
       this.box(x + w, -pitD, y, t, pitD, d, c);
       const n = Math.max(2, Math.round(pitD / 0.2)), tread = Math.min(0.3, d / n), rise = pitD / n;
       for (let i = 0; i < n; i++) this.box(x + w - 0.7, -pitD, y + i * tread, 0.7, pitD - i * rise, tread, c);
-      this.ground({ x0: x - t, x1: x + w + t, y0: y - t, y1: y + d + t });
-    } else this.ground(null);
+      if (f === 0) this.ground({ x0: x - t, x1: x + w + t, y0: y - t, y1: y + d + t });
+    }
 
-    if (mode === "full") {
+    // Tepasida xona yo'q joylar yopiladi, eng yuqori qavatga tom qo'yiladi
+    if (mode === "full" && f + 1 < (all.floors || 1)) {
+      const up = fv(all, f + 1).rooms;
+      for (const r of p.rooms) {
+        if (up.some((q) => q.x < r.x + r.w && r.x < q.x + q.w && q.y < r.y + r.d && r.y < q.y + q.d)) continue;
+        this.box(m(r.x) - 0.5, H, m(r.y) - 0.5, m(r.w) + 1, 0.2, m(r.d) + 1, this.mat.cold);
+      }
+    }
+    if (mode === "full" && f + 1 >= (all.floors || 1)) {
       const b = bounds(p), ov = 0.4, x0 = m(b.x0) - ov, x1 = m(b.x1) + ov, z0 = m(b.y0) - ov, z1 = m(b.y1) + ov, zm = (z0 + z1) / 2, yr = H + (z1 - z0) * 0.22;
       const g = new THREE.BufferGeometry();
       g.setAttribute("position", new THREE.Float32BufferAttribute([
@@ -182,25 +248,32 @@ export class View3D {
       const roof = new THREE.Mesh(g, this.mat.roof); roof.castShadow = true; this.group.add(roof);
     }
 
-    this.items(p, res, opt, wallH, pitD);
-    if (opt.heat) this.heating(p, heat, H, pitD);
+    const here = (q) => floorOf(q) === f;
+    this.items(p, res, opt, wallH, f, H + slab);
+    if (opt.heat) this.heating(p, heat, H, pitD, f, all);
     if (opt.elec) {
-      for (const s of res.elec.segs) this.run(s.pts, wallH - 0.05, s.branch ? 0.006 : 0.009, this.mat.cable);
-      for (const b of res.elec.boxes) {
+      for (const s of res.elec.segs.filter(here)) this.run(s.pts, wallH - 0.05, s.branch ? 0.006 : 0.009, this.mat.cable);
+      for (const b of res.elec.boxes.filter(here)) {
         const w = nearestWall(p, b.x, b.y);
         this.place(P.junctionBox(), m(w.x), wallH - 0.2, m(w.y), w.ix, w.iz);
       }
     }
     if (opt.plumb) {
-      for (const s of res.plumb.cold) this.run(s.pts, 0.3, 0.012, this.mat.blue, -7);
-      for (const s of res.plumb.hot) this.run(s.pts, 0.3, 0.012, this.mat.hot, 7);
-      for (const s of res.plumb.sewer) this.run(s.pts, 0.05, s.dn === 110 ? 0.055 : 0.03, this.mat.sewer);
+      for (const s of res.plumb.cold.filter(here)) this.run(s.pts, 0.3, 0.012, this.mat.blue, -7);
+      for (const s of res.plumb.hot.filter(here)) this.run(s.pts, 0.3, 0.012, this.mat.hot, 7);
+      for (const s of res.plumb.sewer.filter(here)) this.run(s.pts, 0.05, s.dn === 110 ? 0.055 : 0.03, this.mat.sewer);
     }
   }
-  items(p, res, opt, wallH, pitD) {
+  items(p, res, opt, wallH, f, step) {
     for (const i of p.items) {
       const k = ITEM_KINDS[i.kind];
-      if (!k || i.kind === "jbox" || i.kind === "boiler") continue;
+      if (!k || i.kind === "jbox" || i.kind === "boiler" || i.kind === "riser") continue;
+      if (i.kind === "stairs") {
+        if (floorOf(i) !== f) continue;
+        const s = P.stairs(m(k.w), m(k.d), step);
+        s.position.set(m(i.x), 0, m(i.y)); if (i.rot) s.rotation.y = Math.PI / 2;
+        this.group.add(s); continue;
+      }
       if (k.group === "elec" && !opt.elec) continue;
       if (k.group === "plumb" && !opt.plumb) continue;
       const w = nearestWall(p, i.x, i.y), x = m(i.x), z = m(i.y), wx = m(w.x), wz = m(w.y);
@@ -221,13 +294,13 @@ export class View3D {
       }
     }
   }
-  heating(p, h, H, pitD) {
+  heating(p, h, H, pitD, f, all) {
     const top = h.topSupply, YA = H + 0.15, ySup = top ? YA : 0.17, yRet = 0.08;
-    for (const s of h.segs) {
+    for (const s of h.segs.filter((q) => floorOf(q) === f)) {
       const r = Math.min(0.035, s.id / 2000 + 0.006);
       this.run(s.pts, ySup, r, this.mat.hot, -5); this.run(s.pts, yRet, r, this.mat.blue, 5);
     }
-    for (const r of h.rads) {
+    for (const r of h.rads.filter((q) => q.floor === f)) {
       const s = sideInfo(r.room, r.side), ix = -s.nx, iz = -s.ny, tx = iz, tz = -ix;
       const x = m(r.x), z = m(r.y), half = m(r.w) / 2 + 0.04;
       this.place(P.radiator(r.sec), x, 0, z, ix, iz);
@@ -243,7 +316,7 @@ export class View3D {
       this.place(P.ballValve(), bx, yB - 0.03, bz, ix, iz);
     }
     const b = h.boiler;
-    if (!b) return;
+    if (!b || floorOf(b) !== f) return;
     const w = nearestWall(p, b.x, b.y), bx = m(b.x), bz = m(b.y), y0 = -pitD, solid = p.fuel === "solid";
     this.place(solid ? P.boilerSolid() : P.boilerGas(), bx, y0, bz, w.ix, w.iz);
     const bTop = y0 + (solid ? 1.45 : 1.0);
@@ -270,7 +343,7 @@ export class View3D {
       this.place(P.ballValve(), nx, mid + 0.22, nz); this.place(P.ballValve(), nx, mid - 0.22, nz);
     }
     if (p.loop === "open") {
-      const bnd = bounds(p), tz = m(bnd.y0 + bnd.y1) / 2, ty = H + 0.85;
+      const bnd = bounds(all), tz = m(bnd.y0 + bnd.y1) / 2, extra = ((all.floors || 1) - 1 - f) * (H + m(all.slab ?? 30)), ty = H + 0.85 + extra;
       const start = V(sx, ySup, sz);
       this.tube(top ? start : V(sx, bTop, sz), V(sx, ty, tz), 0.018, this.mat.hot);
       this.place(P.openTank(), sx, ty, tz);

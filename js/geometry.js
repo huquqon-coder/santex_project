@@ -1,6 +1,29 @@
 // Rejadagi geometriya: devorlar, tashqi tomonlar, ochilmalar.
 import { ROOM_TYPES } from "./model.js";
 
+// Bitta qavatning ko'rinishi: geometriya funksiyalari shu bilan ishlaydi. Zina va stoyak barcha qavatga tegishli.
+export const floorOf = (e) => e.floor || 0;
+export function fv(p, f) {
+  const rooms = p.rooms.filter((r) => floorOf(r) === f), ids = new Set(rooms.map((r) => r.id));
+  return {
+    ...p, rooms,
+    openings: p.openings.filter((o) => ids.has(o.room)),
+    items: p.items.filter((i) => i.kind === "riser" || i.kind === "stairs" || floorOf(i) === f),
+  };
+}
+export const floorList = (p) => Array.from({ length: p.floors || 1 }, (_, i) => i);
+
+// Xonaning yuqori yoki pastki qavat bilan yopilgan ulushi
+export function coverage(p, r, f) {
+  const a = r.w * r.d; let s = 0;
+  for (const q of p.rooms) {
+    if (floorOf(q) !== f) continue;
+    const w = Math.min(r.x + r.w, q.x + q.w) - Math.max(r.x, q.x), d = Math.min(r.y + r.d, q.y + q.d) - Math.max(r.y, q.y);
+    if (w > 0 && d > 0) s += w * d;
+  }
+  return Math.min(1, s / a);
+}
+
 export const inRoom = (r, x, y) => x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.d;
 export const roomAt = (p, x, y) => p.rooms.find((r) => inRoom(r, x, y)) || null;
 

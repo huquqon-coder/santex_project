@@ -20,6 +20,7 @@
     <button data-t="view3d" aria-pressed="false">3D</button>
     <button data-t="report" aria-pressed="false">Hisob</button>
   </nav>
+  <div class="seg" id="floors" hidden></div>
   <div class="acts">
     <button id="undo" title="Ctrl+Z">Orqaga</button>
     <button id="redo">Oldinga</button>
@@ -54,6 +55,7 @@
           <button data-m="ghost" aria-pressed="false">Faqat tizimlar</button>
           <button data-m="full" aria-pressed="false">To'liq uy</button>
         </div>
+        <select id="o-floor" aria-label="Ko'rsatiladigan qavat"></select>
         <label class="chk"><input type="checkbox" id="o-heat" checked> Isitish</label>
         <label class="chk"><input type="checkbox" id="o-elec" checked> Elektr</label>
         <label class="chk"><input type="checkbox" id="o-plumb" checked> Santexnika</label>

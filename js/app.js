@@ -1,6 +1,6 @@
-import { ITEM_KINDS, ROOM_TYPES, WALL_MATERIALS, emptyProject, normalize, sampleProject } from "./model.js";
+import { ITEM_KINDS, ROOM_TYPES, WALL_MATERIALS, emptyProject, normalize, sampleProject, uid } from "./model.js";
 import { Editor } from "./editor.js";
-import { overlaps } from "./geometry.js";
+import { floorList, floorOf, fv, overlaps } from "./geometry.js";
 import { computeHeating, heatingBom, schemeParts } from "./heating.js";
 import { computeElectric, electricBom } from "./electric.js";
 import { computePlumbing, plumbingBom } from "./plumbing.js";
@@ -9,14 +9,14 @@ import { renderReport } from "./report.js";
 const $ = (id) => document.getElementById(id);
 const KEY = "santex-loyiha";
 const TOOLS = {
-  plan: [["select", "Tanlash"], ["room", "Xona chizish"], ["door", "Ichki eshik"], ["entry", "Kirish eshigi"], ["window", "Deraza"]],
+  plan: [["select", "Tanlash"], ["room", "Xona chizish"], ["door", "Ichki eshik"], ["entry", "Kirish eshigi"], ["window", "Deraza"], ["stairs", "Zina"], ["riser", "Stoyak"]],
   heat: [["select", "Tanlash"], ["boiler", "Qozon"]],
   elec: [["select", "Tanlash"], ["panel", "Shchit"], ["jbox", "Korobka"], ["light", "Chiroq"], ["switch", "Viklyuchatel"], ["socket", "Rozetka"], ["power", "Quvvatli rozetka"]],
   plumb: [["select", "Tanlash"], ["waterin", "Suv kirishi"], ["sewerout", "Kanalizatsiya chiqishi"], ["sink", "Rakovina"], ["toilet", "Unitaz"], ["bathtub", "Vanna"], ["shower", "Dush"], ["washer", "Kir mashinasi"], ["heater", "Suv isitkich"]],
 };
 
 const ctx = {
-  p: load(), tab: "plan", tool: "select", sel: null, res: null,
+  p: load(), tab: "plan", tool: "select", sel: null, res: null, floor: 0,
   undo: [], redo: [], pending: null,
   commit() { this.pending = JSON.stringify(this.p); },
   discardCommit() { this.pending = null; },
@@ -41,11 +41,44 @@ const editor = new Editor($("plan"), ctx);
 function recompute() {
   const p = ctx.p;
   ctx.res = { heat: computeHeating(p), elec: computeElectric(p), plumb: computePlumbing(p) };
-  $("planHint").hidden = p.rooms.length > 0;
+  if (ctx.floor >= (p.floors || 1)) ctx.floor = 0;
+  $("planHint").hidden = fv(p, ctx.floor).rooms.length > 0;
+  renderFloors();
   editor.draw();
   renderSide();
   if (ctx.tab === "report") renderRep();
   if (ctx.tab === "view3d") show3D();
+}
+
+function renderFloors() {
+  const p = ctx.p, list = floorList(p);
+  $("floors").hidden = list.length < 2;
+  $("floors").innerHTML = list.map((f) => `<button data-f="${f}" aria-pressed="${f === ctx.floor}">${f + 1}-qavat</button>`).join("");
+  const s = $("o-floor"), cur = s.value || "all";
+  s.innerHTML = `<option value="all">Barcha qavatlar</option>` + list.map((f) => `<option value="${f}">${f + 1}-qavat</option>`).join("");
+  s.value = [...s.options].some((o) => o.value === cur) ? cur : "all";
+  s.hidden = list.length < 2;
+}
+function setFloor(f) {
+  ctx.floor = f; ctx.sel = null;
+  $("planHint").hidden = fv(ctx.p, f).rooms.length > 0;
+  renderFloors(); renderSide(); editor.draw();
+}
+// 1-qavat xonalari va eshik, derazalarini keyingi qavatga nusxalaydi
+function copyFloor() {
+  const { p, floor } = ctx;
+  ctx.commit();
+  const map = new Map();
+  for (const r of fv(p, floor - 1).rooms) {
+    if (!ROOM_TYPES[r.type].heated) continue;
+    const c = { ...r, id: uid(), floor };
+    map.set(r.id, c.id); p.rooms.push(c);
+  }
+  for (const o of p.openings.filter((q) => map.has(q.room))) {
+    if (o.kind === "entry") continue;
+    p.openings.push({ ...o, id: uid(), room: map.get(o.room) });
+  }
+  ctx.changed();
 }
 
 function setTab(t) {
@@ -95,7 +128,8 @@ function selectionHtml() {
   }
   if (s.type === "item") {
     const i = p.items.find((x) => x.id === s.id); if (!i) return "";
-    return `<h2>${ITEM_KINDS[i.kind].name}</h2><button class="del" id="del">O'chirish</button>`;
+    const rot = i.kind === "stairs" ? `<button class="plain" id="rot">90° burish</button>` : "";
+    return `<h2>${ITEM_KINDS[i.kind].name}</h2>${rot}<button class="del" id="del">O'chirish</button>`;
   }
   return "";
 }
@@ -107,8 +141,15 @@ function resultHtml() {
   const { p, res, tab } = ctx;
   if (!res) return "";
   if (tab === "plan" || tab === "view3d") {
-    const bad = overlaps(p);
-    return warningsHtml(bad.map(([a, b]) => `${a.name} va ${b.name} ustma-ust tushgan.`)) + `<h2>Loyiha</h2>` + field("pName", "Nomi", `<input id="pName" value="${p.name.replace(/"/g, "&quot;")}">`) +
+    const bad = floorList(p).flatMap((f) => overlaps(fv(p, f)));
+    const many = p.floors > 1;
+    const notes = bad.map(([a, b]) => `${a.name} va ${b.name} ustma-ust tushgan.`);
+    if (many && !p.items.some((i) => i.kind === "stairs")) notes.push("Qavatlar orasiga zina qo'yilmagan.");
+    const copy = ctx.floor > 0 && !fv(p, ctx.floor).rooms.length
+      ? `<button class="plain" id="copyFloor">${ctx.floor}-qavat rejasini nusxalash</button>` : "";
+    return warningsHtml(notes) + `<h2>Loyiha</h2>` + field("pName", "Nomi", `<input id="pName" value="${p.name.replace(/"/g, "&quot;")}">`) +
+      `<div class="row">` + field("pFloors", "Qavatlar", sel("pFloors", [["1", "1 qavat"], ["2", "2 qavat"]], String(p.floors))) +
+      (many ? field("pSlab", "Yopma, sm", numI("pSlab", p.slab, 15, 50, 5)) : "") + `</div>` + copy +
       `<div class="row">` + field("pH", "Shift, sm", numI("pH", p.h, 240, 500)) + field("pT", "Devor, sm", numI("pT", p.wallT, 10, 80)) + `</div>` +
       field("pMat", "Devor materiali", sel("pMat", Object.entries(WALL_MATERIALS).map(([k, v]) => [k, v.name]), p.wallMaterial)) +
       field("pIns", "Izolyatsiya", sel("pIns", [["0", "Yo'q"], ["5", "5 sm"], ["10", "10 sm"]], String(p.ins))) +
@@ -160,7 +201,7 @@ async function show3D(frame) {
   try {
     if (!view3d) { const { View3D } = await import("./view3d.js"); view3d = new View3D($("gl")); }
     if (frame && !view3dFramed) { view3d.frame(ctx.p); view3dFramed = true; }
-    view3d.update(ctx.p, ctx.res, { ...opt3d, heat: $("o-heat").checked, elec: $("o-elec").checked, plumb: $("o-plumb").checked });
+    view3d.update(ctx.p, ctx.res, { ...opt3d, floor: $("o-floor").value || "all", heat: $("o-heat").checked, elec: $("o-elec").checked, plumb: $("o-plumb").checked });
   } catch (e) {
     console.error(e);
     $("view3dErr").textContent = "3D ishga tushmadi: " + e.message;
@@ -185,13 +226,23 @@ $("side").addEventListener("change", (e) => {
     oW: () => (o.w = n), oH: () => (o.h = n), oS: () => (o.sill = n),
     pName: () => (p.name = v), pH: () => (p.h = n), pT: () => (p.wallT = n), pMat: () => (p.wallMaterial = v),
     pIns: () => (p.ins = n), pOut: () => (p.tout = n), pReg: () => (p.regime = v),
+    pFloors: () => { p.floors = n; view3dFramed = false; }, pSlab: () => (p.slab = n),
     pCirc: () => (p.circ = v), pLoop: () => (p.loop = v), pFuel: () => (p.fuel = v),
     pPit: () => (p.pit = n), pElec: () => (p.elecMode = v),
   }[id];
   if (!set) return ctx.discardCommit();
   set(); ctx.changed();
 });
-$("side").addEventListener("click", (e) => { if (e.target.id === "del") removeSel(); });
+$("side").addEventListener("click", (e) => {
+  if (e.target.id === "del") removeSel();
+  if (e.target.id === "copyFloor") copyFloor();
+  if (e.target.id === "rot") {
+    const i = ctx.p.items.find((x) => x.id === ctx.sel.id);
+    ctx.commit(); i.rot = !i.rot; ctx.changed();
+  }
+});
+$("floors").addEventListener("click", (e) => { if (e.target.dataset.f) setFloor(+e.target.dataset.f); });
+$("o-floor").addEventListener("change", () => show3D());
 function removeSel() {
   const { p, sel: s } = ctx; if (!s) return;
   ctx.commit();
@@ -214,7 +265,7 @@ addEventListener("keydown", (e) => {
   if (e.key === "Delete") removeSel();
   if (e.key === "Escape") { ctx.tool = "select"; renderTools(); }
 });
-function replace(p) { ctx.undo.push(JSON.stringify(ctx.p)); ctx.p = p; ctx.sel = null; view3dFramed = false; recompute(); save(); setTab("plan"); }
+function replace(p) { ctx.undo.push(JSON.stringify(ctx.p)); ctx.p = p; ctx.sel = null; ctx.floor = 0; view3dFramed = false; recompute(); save(); setTab("plan"); }
 $("new").onclick = () => { replace(emptyProject()); ctx.tool = "room"; renderTools(); };
 $("sample").onclick = () => replace(sampleProject());
 $("export").onclick = () => {

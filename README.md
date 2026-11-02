@@ -1,10 +1,10 @@
 # Uy Konstruktor
 
-Bir qavatli uy rejasini chizib, isitish, elektr va santexnika tizimlarini loyihalash uchun sayt. Yig'ish bosqichi yo'q: oddiy HTML, CSS va JS modullari.
+Bir yoki ikki qavatli uy rejasini chizib, isitish, elektr va santexnika tizimlarini loyihalash uchun sayt. Yig'ish bosqichi yo'q: oddiy HTML, CSS va JS modullari.
 
 ## Imkoniyatlar
 
-- **Reja:** xona chizish, eshik va deraza qo'yish, o'lchamlarni tahrirlash.
+- **Reja:** xona chizish, eshik va deraza qo'yish, o'lchamlarni tahrirlash, qavatlar, zina va stoyak.
 - **Isitish:** issiqlik yo'qotish, radiator tanlash va joylash, qozon quvvati, quvur yo'li. Suv aylanishi: nasos, o'zi aylanadigan yoki gibrid. Tizim: ochiq yoki yopiq.
 - **Elektr:** guruhlarga bo'lish, avtomat va kabel tanlash, taqsimlash korobkasi bilan yoki korobkasiz montaj.
 - **Santexnika:** sovuq va issiq suv, kanalizatsiya diametri va uzunligi.

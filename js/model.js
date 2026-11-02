@@ -18,6 +18,8 @@ export const WALL_MATERIALS = {
 };
 
 export const ITEM_KINDS = {
+  stairs: { name: "Zina", group: "build", w: 100, d: 300, color: "#9c7a58" },
+  riser: { name: "Stoyak", group: "build", w: 30, d: 30, color: "#55636b", round: true },
   boiler: { name: "Qozon", group: "heat", w: 60, d: 80, color: "#c9611c" },
   panel: { name: "Elektr shchiti", group: "elec", w: 40, d: 12, color: "#3b4a55" },
   jbox: { name: "Taqsimlash korobkasi", group: "elec", w: 22, d: 22, color: "#7a4fa3" },
@@ -54,6 +56,8 @@ export function emptyProject() {
     version: 1,
     name: "Yangi loyiha",
     h: 300,
+    floors: 1,
+    slab: 30,
     tout: -15,
     wallMaterial: "brick",
     wallT: 40,

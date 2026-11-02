@@ -1,32 +1,34 @@
 // Elektr tarmog'i: guruhlar, avtomat va kabel tanlash, korobkali yoki shleyf montaj.
 import { ROOM_TYPES } from "./model.js";
-import { roomAt } from "./geometry.js";
-import { buildGrid, routeTree } from "./route.js";
+import { floorList, floorOf, fv, roomAt } from "./geometry.js";
+import { buildGrid, multiFloor, routeTree } from "./route.js";
 
 const WATT = { light: 40, socket: 200, power: 2000, switch: 0 };
 const BREAKERS = [10, 16, 20, 25, 32, 40];
 const CABLE = { 10: 1.5, 16: 2.5, 20: 2.5, 25: 4, 32: 6, 40: 10 };
 const V = 220, MAX_SOCKETS = 6;
+const GRID = { door: 3, wall: 2, outside: 4 };
 
-function buildGroups(p) {
-  const pts = p.items.filter((i) => WATT[i.kind] !== undefined);
+function buildGroups(v, f, many) {
+  const suffix = many ? `, ${f + 1}-qavat` : "";
+  const pts = v.items.filter((i) => WATT[i.kind] !== undefined);
   const groups = [];
   const lights = pts.filter((i) => i.kind === "light" || i.kind === "switch");
-  if (lights.length) groups.push({ name: "Yoritish", items: lights, wet: false });
+  if (lights.length) groups.push({ name: "Yoritish" + suffix, items: lights, wet: false, light: true });
   const wet = [], dry = [];
   for (const s of pts.filter((i) => i.kind === "socket")) {
-    const r = roomAt(p, s.x, s.y);
+    const r = roomAt(v, s.x, s.y);
     (r && (r.type === "bath" || r.type === "kitchen") ? wet : dry).push(s);
   }
-  if (wet.length) groups.push({ name: "Oshxona va hammom rozetkalari", items: wet, wet: true });
+  if (wet.length) groups.push({ name: "Oshxona va hammom rozetkalari" + suffix, items: wet, wet: true });
   for (let i = 0; i < dry.length; i += MAX_SOCKETS) {
-    groups.push({ name: `Rozetkalar ${Math.floor(i / MAX_SOCKETS) + 1}`, items: dry.slice(i, i + MAX_SOCKETS), wet: false });
+    groups.push({ name: `Rozetkalar ${Math.floor(i / MAX_SOCKETS) + 1}${suffix}`, items: dry.slice(i, i + MAX_SOCKETS), wet: false });
   }
   pts.filter((i) => i.kind === "power").forEach((s, i) => {
-    const r = roomAt(p, s.x, s.y);
-    groups.push({ name: `Quvvatli liniya ${i + 1}${r ? `, ${r.name.toLowerCase()}` : ""}`, items: [s], wet: r?.type === "bath" });
+    const r = roomAt(v, s.x, s.y);
+    groups.push({ name: `Quvvatli liniya ${i + 1}${r ? `, ${r.name.toLowerCase()}` : ""}${suffix}`, items: [s], wet: r?.type === "bath" });
   });
-  return groups;
+  return groups.map((g) => ({ ...g, floor: f }));
 }
 
 // Korobka joyi: nuqtalar markaziga eng yaqin devor bo'yida, shift ostida
@@ -37,62 +39,69 @@ function autoBoxSpot(r, pts) {
   return { x, y };
 }
 
-function wire(p, g, panel, grid, boxMode, boxes) {
-  const dropM = Math.max(1, p.h / 100 - 0.3);
+function wire(p, g, panel, grids, cache, boxMode, boxes) {
+  const v = fv(p, g.floor), grid = grids(g.floor), dropM = Math.max(1, p.h / 100 - 0.3);
   const segs = [];
   let len = 0, ok = true;
-  const trunkTargets = [], direct = [];
+  const trunk = [], direct = [];
   if (boxMode && g.items.length > 1) {
     const byRoom = new Map();
     for (const i of g.items) {
-      const r = roomAt(p, i.x, i.y);
+      const r = roomAt(v, i.x, i.y);
       const k = r ? r.id : "-";
       if (!byRoom.has(k)) byRoom.set(k, { r, pts: [] });
       byRoom.get(k).pts.push(i);
     }
     for (const { r, pts } of byRoom.values()) {
       if (!r || pts.length < 2) { direct.push(...pts); continue; }
-      const manual = p.items.find((i) => i.kind === "jbox" && roomAt(p, i.x, i.y) === r);
+      const manual = v.items.find((i) => i.kind === "jbox" && roomAt(v, i.x, i.y) === r);
       const spot = manual || autoBoxSpot(r, pts);
-      boxes.push({ x: spot.x, y: spot.y, manual: !!manual, id: manual?.id, room: r.name, title: `Korobka: ${r.name}, ${g.name}`, points: pts.length });
-      trunkTargets.push({ x: spot.x, y: spot.y });
+      boxes.push({ x: spot.x, y: spot.y, floor: g.floor, manual: !!manual, id: manual?.id, room: r.name, title: `Korobka: ${r.name}, ${g.name}`, points: pts.length });
+      trunk.push({ x: spot.x, y: spot.y, floor: g.floor });
       // Har bir nuqta korobkadan alohida kabel oladi
       for (const q of pts) {
         const t = routeTree(grid, spot, [{ x: q.x, y: q.y }]);
         ok = ok && t.ok;
         len += t.length * 1.15 + dropM;
-        segs.push(...t.segs.map((s) => ({ ...s, branch: true })));
+        segs.push(...t.segs.map((s) => ({ ...s, branch: true, floor: g.floor })));
       }
     }
   } else direct.push(...g.items);
-  const t = routeTree(grid, { x: panel.x, y: panel.y }, [...trunkTargets, ...direct.map((i) => ({ x: i.x, y: i.y }))]);
+  const t = multiFloor(p, panel, [...trunk, ...direct.map((i) => ({ x: i.x, y: i.y, floor: g.floor }))], GRID, cache);
   ok = ok && t.ok;
   len += t.length * 1.15 + direct.length * dropM;
   segs.push(...t.segs);
-  return { segs, len, ok };
+  return { segs, len, ok, risers: t.risers };
 }
 
 export function computeElectric(p) {
   const warnings = [];
   const panel = p.items.find((i) => i.kind === "panel");
-  const groups = buildGroups(p);
+  const many = (p.floors || 1) > 1;
+  const groups = floorList(p).flatMap((f) => buildGroups(fv(p, f), f, many));
   const boxMode = p.elecMode !== "loop";
-  const out = { groups: [], warnings, segs: [], cable: {}, total: 0, inputA: 0, boxes: [], boxMode, altLen: 0, len: 0 };
+  const out = { groups: [], warnings, segs: [], cable: {}, total: 0, inputA: 0, boxes: [], risers: [], boxMode, altLen: 0, len: 0 };
   if (!groups.length) return out;
   if (!panel) warnings.push("Elektr shchiti qo'yilmagan, kabellar chizilmadi.");
-  const grid = panel ? buildGrid(p, { door: 3, wall: 2, outside: 4 }) : null;
+  const cache = new Map();
+  const grids = (f) => {
+    const k = "g" + f;
+    if (!cache.has(k)) cache.set(k, buildGrid(fv(p, f), GRID));
+    return cache.get(k);
+  };
   for (const g of groups) {
     const P = g.items.reduce((a, i) => a + WATT[i.kind], 0);
     const I = (P * 1.1) / V;
-    const br = BREAKERS.find((b) => b >= I && (g.name === "Yoritish" ? true : b >= 16)) || 40;
+    const br = BREAKERS.find((b) => b >= I && (g.light ? true : b >= 16)) || 40;
     const mm = CABLE[br];
     let len = 0;
     if (panel) {
-      const w = wire(p, g, panel, grid, boxMode, out.boxes);
+      const w = wire(p, g, panel, grids, cache, boxMode, out.boxes);
       if (!w.ok) warnings.push(`${g.name}: kabel yo'li topilmadi.`);
       len = w.len;
       out.segs.push(...w.segs);
-      out.altLen += wire(p, g, panel, grid, !boxMode, []).len;
+      out.risers.push(...w.risers);
+      out.altLen += wire(p, g, panel, grids, cache, !boxMode, []).len;
     }
     out.groups.push({ name: g.name, count: g.items.length, P, I, br, mm, len, rcd: g.wet, kind: g.items[0].kind });
     out.cable[mm] = (out.cable[mm] || 0) + len;
@@ -102,18 +111,19 @@ export function computeElectric(p) {
   out.demand = out.total * 0.6;
   out.inputA = BREAKERS.find((b) => b >= out.demand / V) || 63;
   for (const b of p.items.filter((i) => i.kind === "jbox")) {
-    if (boxMode && !roomAt(p, b.x, b.y)) warnings.push("Korobka xona ichiga qo'yilishi kerak.");
+    if (boxMode && !roomAt(fv(p, floorOf(b)), b.x, b.y)) warnings.push("Korobka xona ichiga qo'yilishi kerak.");
   }
   for (const r of p.rooms) {
-    if (!ROOM_TYPES[r.type].heated) continue;
-    if (!p.items.some((i) => i.kind === "light" && i.x > r.x && i.x < r.x + r.w && i.y > r.y && i.y < r.y + r.d)) warnings.push(`${r.name}: chiroq yo'q.`);
+    if (!ROOM_TYPES[r.type].heated || floorOf(r) >= (p.floors || 1)) continue;
+    const f = floorOf(r);
+    if (!p.items.some((i) => i.kind === "light" && floorOf(i) === f && i.x > r.x && i.x < r.x + r.w && i.y > r.y && i.y < r.y + r.d)) warnings.push(`${r.name}: chiroq yo'q.`);
   }
   return out;
 }
 
 export function electricBom(p, e) {
   if (!e.groups.length) return [];
-  const G = "Elektr", n = (k) => p.items.filter((i) => i.kind === k).length;
+  const G = "Elektr", n = (k) => p.items.filter((i) => i.kind === k && floorOf(i) < (p.floors || 1)).length;
   const rows = [];
   for (const mm of Object.keys(e.cable).sort((a, b) => a - b)) {
     rows.push({ g: G, k: "cable" + mm, name: "Mis kabel VVGng", spec: `3×${mm} mm²`, unit: "m", qty: Math.ceil(e.cable[mm]) });

@@ -256,6 +256,23 @@ export function windowFrame(w, h, depthOut = 0.15) {
   return g;
 }
 
+// Zina: oldidan orqaga ko'tariladi, panjarasi bilan
+export function stairs(w, d, rise) {
+  const g = G(), n = Math.max(3, Math.round(rise / 0.18)), tread = d / n, r = rise / n;
+  for (let i = 0; i < n; i++) {
+    const z = d / 2 - (i + 0.5) * tread;
+    B(g, w, 0.04, tread + 0.02, M.wood, 0, (i + 1) * r - 0.04, z);
+    B(g, w - 0.04, r - 0.04, 0.02, M.woodDark, 0, i * r, z + tread / 2);
+    if (i % 3 === 0) C(g, 0.012, 0.9, M.woodDark, w / 2 - 0.03, (i + 1) * r + 0.45, z);
+  }
+  line(g, [V3(w / 2 - 0.03, 0.9 + r, d / 2 - tread / 2), V3(w / 2 - 0.03, rise + 0.9, -d / 2 + tread / 2)], 0.02, M.wood);
+  for (const x of [-w / 2 + 0.03, w / 2 - 0.03]) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, Math.hypot(rise, d)), M.woodDark);
+    m.position.set(x, rise / 2, 0); m.rotation.x = Math.atan2(rise, d); g.add(m);
+  }
+  return g;
+}
+
 /* Isitish armaturasi */
 export function ballValve() {
   const g = G();
