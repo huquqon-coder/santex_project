@@ -251,7 +251,7 @@ ol.steps{margin:0;padding-left:20px;display:grid;gap:7px;max-width:70ch}
         <li>Oshxona jihozlari bitta devorda: pastda shkaf, rakovina va duxovka, tepada shkaf va so'rg'ich.</li>
         <li>Cherdak bor, issiq suv quvuri uning ichida izolyatsiya bilan yuradi.</li>
         <li>Cho'yan radiator MS-140-500: seksiyasi ΔT 70 da 160 W. Keng kanali o'zi aylanishga mos va ochiq tizimda zanglamaydi.</li>
-        <li>Burchak xonalarda 22 °C, oshxonada 20 °C, hammomda 25 °C. Shift U = 0,5, pol U = 0,6, grunt +5 °C.</li>
+        <li>Butun tizim armaturali PPR PN25, po'lat faqat qozon oldida. PPR 95 °C dan oshsa buziladi, qozon suvi 90 °C dan oshmasligi kerak.</li><li>Burchak xonalarda 22 °C, oshxonada 20 °C, hammomda 25 °C. Shift U = 0,5, pol U = 0,6, grunt +5 °C.</li>
       </ul>
     </div>
     <div>
@@ -297,9 +297,9 @@ const ROOMS=[
   {id:"y",name:"Yashash xonasi",x0:X4,x1:XE,z0:Z2,z1:DEPTH,L:[4.2,5.7],win:1,ti:22,n:.5,
    slots:[{wall:"front",c:9.7},{wall:"right",c:4.6}],floor:"wood"}
 ];
-const PIPES=[{dn:20,id:21.2,inch:'3/4"'},{dn:25,id:27.1,inch:'1"'},{dn:32,id:35.9,inch:'1 1/4"'},{dn:40,id:41,inch:'1 1/2"'},{dn:50,id:53,inch:'2"'},{dn:65,id:68,inch:'2 1/2"'},{dn:80,id:80.5,inch:'3"'}];
+const PIPES=[{dn:20,id:13.2},{dn:25,id:16.6},{dn:32,id:21.2},{dn:40,id:26.6},{dn:50,id:33.4},{dn:63,id:42},{dn:75,id:50},{dn:90,id:60}];
 const byDn=d=>PIPES.find(p=>p.dn===d);
-const PIPE_SETS=[[40,32,25],[50,40,32],[65,50,40],[80,65,50]];
+const PIPE_SETS=[[63,50,40],[75,63,50],[90,75,63]];
 const BOILERS=[12,15,20,25,30,40,50];
 const RHO={80:971.8,55:985.7};
 
@@ -1016,10 +1016,10 @@ function renderTables(c,lay,p){
     ["To'kish quvuri (bakdan qozonxonagacha)","Ø20",`${Math.ceil(p.h+p.pit+6)} m`],
     ["To'ldirish va to'kish kranlari",'1/2"',"2 dona"],
     ["Termometr va manometr","qozon chiqishi","1 to'plam"],
-    ["Po'lat quvur, asosiy",`Ø${m.dn} (${m.inch})`,`${Lmain} m`],
-    ["Po'lat quvur, tarmoq",`Ø${b.dn} (${b.inch})`,`${Lbr} m`],
-    ["Po'lat quvur, tarmoq oxiri",`Ø${t.dn} (${t.inch})`,`${Ltail} m`],
-    ["Po'lat quvur, radiator ulanishi",`Ø20 (3/4")`,`${Lcon} m`],
+    ["PPR PN25 armaturali quvur, asosiy",`Ø${m.dn}`,`${Math.max(0,Lmain-4)} m`],
+    ["PPR PN25 armaturali quvur, tarmoq",`Ø${b.dn}`,`${Lbr} m`],
+    ["PPR PN25 armaturali quvur, tarmoq oxiri",`Ø${t.dn}`,`${Ltail} m`],
+    ["PPR PN25 radiator ulanishi",`Ø25`,`${Lcon} m`],["Po'lat quvur, qozon oldida, har liniyada 2 m",`Ø50`,`4 m`],["Po'latdan PPR ga o'tish muftasi",`rezbali`,`2 dona`],
     ["Cherdak quvuri izolyatsiyasi, mineral paxta","20 mm",`${Math.ceil((lay.lens.left+lay.lens.right)*.6+6)} m`],
     ["Tutun quvuri, zanglamaydigan po'lat","qozon chiqishiga mos",`${fmt(AZ1*-1+1.2,0)} m`],
     ["G'isht mo'ri, ichki kanali bilan",`H ${fmt(p.h+2.8,1)} m`,"1 dona"],
@@ -1040,7 +1040,7 @@ const COST=[
   {g:"i",k:"pump",n:"Nasos va bypass tugunini yig'ish",u:"dona",q:()=>1,r:800000},
   {g:"i",k:"tank",n:"Ochiq bak va to'kish quvurini o'rnatish",u:"dona",q:()=>1,r:600000},
   {g:"i",k:"rad",n:"Radiatorni yig'ish, osish va ulash",u:"dona",q:v=>v.rads,r:200000},
-  {g:"i",k:"pipe",n:"Po'lat quvurni payvandlab yotqizish",u:"m",q:v=>v.pipe,r:40000},
+  {g:"i",k:"pipe",n:"PPR quvurni payvandlab yotqizish",u:"m",q:v=>v.pipe,r:40000},
   {g:"i",k:"ins",n:"Cherdak quvurini izolyatsiyalash",u:"m",q:v=>v.ins,r:8000},
   {g:"i",k:"flue",n:"Tutun quvurini ulash",u:"dona",q:()=>1,r:500000},
   {g:"i",k:"chim",n:"G'isht mo'rini terish",u:"dona",q:()=>1,r:2000000},

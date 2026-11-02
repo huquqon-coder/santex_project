@@ -7,10 +7,14 @@ const U_WIN = 1.6, U_DOOR = 2, U_CEIL = 0.5, U_FLOOR = 0.6, T_GROUND = 5, CEIL_K
 const Q70 = 160, SEC_W = 9.3, SEC_L = 1.45, MAX_SEC = 14;
 const BOILERS = [12, 15, 20, 25, 30, 40, 50, 60];
 const RHO_80 = 971.8, RHO_55 = 985.7;
+// Armaturali PPR PN25: dn tashqi diametr, id ichki diametr
 const PIPES = [
-  { dn: 20, id: 21.2 }, { dn: 25, id: 27.1 }, { dn: 32, id: 35.9 }, { dn: 40, id: 41 },
-  { dn: 50, id: 53 }, { dn: 65, id: 68 }, { dn: 80, id: 80.5 },
+  { dn: 20, id: 13.2 }, { dn: 25, id: 16.6 }, { dn: 32, id: 21.2 }, { dn: 40, id: 26.6 },
+  { dn: 50, id: 33.4 }, { dn: 63, id: 42 }, { dn: 75, id: 50 }, { dn: 90, id: 60 },
 ];
+// Qozon oldidagi po'lat qism: har liniyada 2 m, ichki kesimi PPR dan kichik emas
+const STEEL = [{ dn: 20, id: 21.2 }, { dn: 25, id: 27.1 }, { dn: 32, id: 35.9 }, { dn: 40, id: 41 }, { dn: 50, id: 53 }, { dn: 65, id: 68 }];
+const STEEL_M = 4;
 
 function fric(gLh, idMm) {
   const d = idMm / 1000, v = gLh / 3.6e6 / ((Math.PI / 4) * d * d), Re = Math.max((v * d) / 0.41e-6, 1);
@@ -117,7 +121,7 @@ export function computeHeating(p) {
   const out = {
     rooms, rads, Q, need, boilerKw, totals, wallU, warnings, secs: rads.reduce((a, x) => a + x.sec, 0),
     segs: [], lens: {}, gravity: null, flow: flow(Q), boiler,
-    topSupply: grav, steel: solid || grav || p.loop === "open",
+    topSupply: grav,
   };
   warnings.push(...schemeWarnings(p));
 
@@ -130,7 +134,7 @@ export function computeHeating(p) {
 
   const size = (w, grav) => {
     const g = grav ? w / (1.163 * 25) : flow(w);
-    const vmax = grav ? 0.05 : 0.7;
+    const vmax = grav ? 0.07 : 0.7;
     return PIPES.find((d) => (g / 3.6e6) / ((Math.PI / 4) * (d.id / 1000) ** 2) <= vmax) || PIPES[PIPES.length - 1];
   };
   const sumL = {};
@@ -141,6 +145,10 @@ export function computeHeating(p) {
   });
   out.lens = sumL;
   out.pipeTotal = Object.values(sumL).reduce((a, b) => a + b, 0);
+  // Qozon oldidagi qism po'lat, shuncha PPR kamayadi
+  const mainPipe = size(Q, grav);
+  out.steelPipe = STEEL.find((d) => d.id >= mainPipe.id) || STEEL[STEEL.length - 1];
+  if (sumL[mainPipe.dn]) sumL[mainPipe.dn] = Math.max(0, sumL[mainPipe.dn] - STEEL_M);
 
   // Eng uzun halqa bo'yicha taxminiy qarshilik
   const longest = Math.max(0, ...rads.map((r) => Math.hypot(r.x - boiler.x, r.y - boiler.y) / 100)) * 2.6;
@@ -169,7 +177,8 @@ function schemeWarnings(p) {
   if (solid && p.loop === "closed" && p.circ !== "gravity") w.push("Yopiq tizimda qattiq yoqilg'i qozoni elektr uzilganda qizib ketishi mumkin. Xavfsizlik guruhi va termik to'kish klapani shart.");
   if (solid && p.loop === "closed" && p.circ === "gravity") w.push("Yopiq tizimda qattiq yoqilg'i qozoniga termik to'kish klapani shart.");
   if (solid && p.circ === "pump") w.push("Elektr uzilsa, suv aylanmaydi, qozon esa yonishda davom etadi. Zaxira quvvat manbai kerak.");
-  if (p.loop === "open") w.push("Ochiq tizimda suvga havo tegadi: quvur va radiatorlar zanglashga chidamli bo'lsin, bakdagi suv sathini kuzating.");
+  if (p.loop === "open") w.push("Ochiq tizimda suvga havo tegadi: bakdagi suv sathini kuzating.");
+  if (solid) w.push("PPR 95 °C dan oshsa buziladi. Qozon suvi 90 °C dan oshmasligi kerak: faqat armaturali PN25 quvur va harorat cheklovi ishlating.");
   return w;
 }
 
@@ -183,7 +192,7 @@ export function schemeParts(p, h) {
   if (p.loop === "open") a.push(`Ochiq kengayish baki ${h.tank || 20} l, eng baland nuqtada`, "To'kish quvuri bakdan pastga", "Havo bak orqali chiqadi");
   else a.push(`Yopiq membranali bak ${h.vessel || 18} l`, "Xavfsizlik guruhi: klapan 3 bar, havo chiqargich, manometr");
   if (p.fuel === "solid" && p.loop === "closed") a.push("Termik to'kish klapani");
-  a.push(h.steel ? "Po'lat quvur, payvandlangan" : "PPR quvur, armaturali");
+  a.push("PPR PN25 armaturali quvur", `Qozon oldida po'lat quvur Ø${h.steelPipe?.dn || 32}, har liniyada 2 m`);
   return a;
 }
 
@@ -195,10 +204,15 @@ export function heatingBom(p, h) {
   rows.push({ g: G, k: "rad", name: "Radiator seksiyasi", spec: "500 mm", unit: "seksiya", qty: h.secs });
   rows.push({ g: G, k: "radset", name: "Radiator kranlari va to'plami", spec: "3/4\"", unit: "to'plam", qty: h.rads.length });
   for (const dn of Object.keys(h.lens).sort((a, b) => a - b)) {
-    rows.push({ g: G, k: "pipe" + dn, name: h.steel ? "Po'lat quvur" : "PPR quvur", spec: `Ø${dn}`, unit: "m", qty: Math.ceil(h.lens[dn] * 1.1) });
+    if (h.lens[dn] < 0.1) continue;
+    rows.push({ g: G, k: "pipe" + dn, name: "PPR PN25 armaturali quvur", spec: `Ø${dn}`, unit: "m", qty: Math.ceil(h.lens[dn] * 1.1) });
+  }
+  if (h.steelPipe) {
+    rows.push({ g: G, k: "steel", name: "Po'lat quvur, qozon oldida", spec: `Ø${h.steelPipe.dn}`, unit: "m", qty: STEEL_M });
+    rows.push({ g: G, k: "adapter", name: "Po'latdan PPR ga o'tish muftasi", spec: "rezbali", unit: "dona", qty: 2 });
   }
   const conn = h.topSupply ? p.h / 100 + 1 : 2.5;
-  rows.push({ g: G, k: "conn", name: "Radiator ulanish quvuri", spec: "Ø20", unit: "m", qty: Math.ceil(h.rads.length * conn) });
+  rows.push({ g: G, k: "conn", name: "Radiator ulanishi, PPR PN25", spec: "Ø25", unit: "m", qty: Math.ceil(h.rads.length * conn) });
   rows.push({ g: G, k: "filter", name: "Loyqa filtr va kranlar", spec: "qozon uchun", unit: "to'plam", qty: 1 });
   if (p.circ !== "gravity") {
     rows.push({ g: G, k: "pump", name: "Aylanma nasos", spec: "25-60", unit: "dona", qty: 1 });
