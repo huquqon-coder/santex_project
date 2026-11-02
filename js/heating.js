@@ -1,0 +1,183 @@
+// Issiqlik yo'qotish, radiator tanlash, quvur yo'li va o'zi aylanish tekshiruvi.
+import { ROOM_TYPES, WALL_MATERIALS } from "./model.js";
+import { SIDES, extLength, isExterior, sideInfo, openingRect } from "./geometry.js";
+import { buildGrid, routeTree, segLen } from "./route.js";
+
+const U_WIN = 1.6, U_DOOR = 2, U_CEIL = 0.5, U_FLOOR = 0.6, T_GROUND = 5, CEIL_K = 0.9;
+const Q70 = 160, SEC_W = 9.3, SEC_L = 1.45, MAX_SEC = 14;
+const BOILERS = [12, 15, 20, 25, 30, 40, 50, 60];
+const RHO_80 = 971.8, RHO_55 = 985.7;
+const PIPES = [
+  { dn: 20, id: 21.2 }, { dn: 25, id: 27.1 }, { dn: 32, id: 35.9 }, { dn: 40, id: 41 },
+  { dn: 50, id: 53 }, { dn: 65, id: 68 }, { dn: 80, id: 80.5 },
+];
+
+function fric(gLh, idMm) {
+  const d = idMm / 1000, v = gLh / 3.6e6 / ((Math.PI / 4) * d * d), Re = Math.max((v * d) / 0.41e-6, 1);
+  const f = Re < 2300 ? 64 / Re : 0.11 * Math.pow(0.2 / idMm + 68 / Re, 0.25);
+  return (f / d) * 975 * v * v / 2;
+}
+
+function roomLoss(p, r, wallU) {
+  const t = ROOM_TYPES[r.type];
+  const A = (r.w * r.d) / 1e4, h = p.h / 100, dT = t.ti - p.tout;
+  const ops = p.openings.filter((o) => o.room === r.id || adjacent(p, o, r));
+  let Awin = 0, Adoor = 0;
+  for (const o of ops) {
+    if (o.room !== r.id || !isExterior(p, r, o.side, o.off) || o.kind === "door") continue;
+    const a = (o.w * o.h) / 1e4;
+    if (o.kind === "window") Awin += a; else Adoor += a;
+  }
+  // Tashqi devor uzunligi burchak qalinligi bilan olinadi
+  const L = SIDES.reduce((s, q) => {
+    const e = extLength(p, r, q);
+    return s + (e ? e + p.wallT * 1.5 : 0);
+  }, 0) / 100;
+  const Awall = Math.max(0, L * h - Awin - Adoor);
+  const parts = {
+    wall: Awall * wallU * dT,
+    win: Awin * U_WIN * dT,
+    door: Adoor * U_DOOR * dT,
+    ceil: A * U_CEIL * CEIL_K * dT,
+    floor: A * U_FLOOR * Math.max(0, t.ti - T_GROUND),
+    air: 0.34 * A * h * t.n * dT,
+  };
+  return { A, parts, Q: Object.values(parts).reduce((a, b) => a + b, 0) };
+}
+const adjacent = () => false;
+
+// Radiator joylari: avval tashqi deraza tagi, keyin tashqi devor, oxirida ichki devor
+function radiatorSpots(p, r) {
+  const items = p.items.filter((i) => i.x > r.x - 40 && i.x < r.x + r.w + 40 && i.y > r.y - 40 && i.y < r.y + r.d + 40);
+  const rects = p.openings.map((o) => openingRect(p, o)).filter(Boolean);
+  const blocked = (x, y, half) => rects.some((q) => x > q.x - half - 15 && x < q.x + q.w + half + 15 && y > q.y - 60 && y < q.y + q.d + 60)
+    || rects.some((q) => y > q.y - half - 15 && y < q.y + q.d + half + 15 && x > q.x - 60 && x < q.x + q.w + 60)
+    || items.some((i) => Math.hypot(i.x - x, i.y - y) < half + 45);
+  const out = [];
+  for (const o of p.openings) {
+    if (o.room === r.id && o.kind === "window") out.push({ side: o.side, off: o.off, rank: isExterior(p, r, o.side, o.off) ? 0 : 3 });
+  }
+  for (const side of SIDES) {
+    const s = sideInfo(r, side);
+    for (let off = 60; off <= s.len - 60; off += 30) {
+      const [x, y] = s.at(off);
+      const [ix, iy] = [x - s.nx * 8, y - s.ny * 8];
+      if (blocked(ix, iy, 40)) continue;
+      out.push({ side, off, rank: isExterior(p, r, side, off) ? 1 : 2 });
+    }
+  }
+  return out.sort((a, b) => a.rank - b.rank);
+}
+
+export function computeHeating(p) {
+  const [ts, tr] = p.regime.split("/").map(Number);
+  const tm = (ts + tr) / 2, dt = ts - tr;
+  const lam = WALL_MATERIALS[p.wallMaterial].lam;
+  const wallU = 1 / (0.2 + p.wallT / 100 / lam + p.ins / 100 / 0.04);
+  const totals = { wall: 0, win: 0, door: 0, ceil: 0, floor: 0, air: 0 };
+  const rooms = [], rads = [];
+  const warnings = [];
+
+  for (const r of p.rooms) {
+    const t = ROOM_TYPES[r.type];
+    if (!t.heated) continue;
+    const l = roomLoss(p, r, wallU);
+    for (const k in totals) totals[k] += l.parts[k];
+    const qs = Q70 * Math.pow((tm - t.ti) / 70, 1.3);
+    const need = Math.max(4, Math.ceil(l.Q / qs));
+    const spots = radiatorSpots(p, r);
+    const windows = spots.filter((s) => s.rank === 0).length;
+    const units = Math.max(1, windows, Math.ceil(need / MAX_SEC));
+    const chosen = [];
+    for (const s of spots) {
+      if (chosen.length >= units) break;
+      if (chosen.some((c) => c.side === s.side && Math.abs(c.off - s.off) < 170)) continue;
+      chosen.push(s);
+    }
+    if (!chosen.length) warnings.push(`${r.name}: radiator uchun bo'sh devor topilmadi.`);
+    const sec = chosen.length ? Math.max(4, Math.ceil(need / chosen.length)) : 0;
+    for (const c of chosen) {
+      const s = sideInfo(r, c.side);
+      const [x, y] = s.at(c.off);
+      rads.push({
+        no: rads.length + 1, room: r, side: c.side, sec, w: sec * SEC_W, power: sec * qs,
+        x: x - s.nx * 9, y: y - s.ny * 9, load: sec * qs, horiz: c.side === "n" || c.side === "s",
+      });
+    }
+    rooms.push({ r, A: l.A, Q: l.Q, sec, units: chosen.length, ti: t.ti });
+  }
+
+  const Q = rooms.reduce((a, x) => a + x.Q, 0);
+  const margin = p.gravity ? 1.3 : 1.15;
+  const need = (Q * margin) / 1000;
+  const boilerKw = BOILERS.find((b) => b >= need) || BOILERS[BOILERS.length - 1];
+  const boiler = p.items.find((i) => i.kind === "boiler");
+  const flow = (w) => w / (1.163 * dt);
+  const out = { rooms, rads, Q, need, boilerKw, totals, wallU, warnings, secs: rads.reduce((a, x) => a + x.sec, 0), segs: [], lens: {}, gravity: null, flow: flow(Q) };
+
+  if (!boiler) {
+    if (rads.length) warnings.push("Qozon qo'yilmagan, quvurlar chizilmadi.");
+    return out;
+  }
+  const net = routeTree(buildGrid(p), { x: boiler.x, y: boiler.y }, rads);
+  if (!net.ok) warnings.push("Ba'zi radiatorlarga quvur yo'li topilmadi.");
+
+  const size = (w, grav) => {
+    const g = grav ? w / (1.163 * 25) : flow(w);
+    const vmax = grav ? 0.05 : 0.7;
+    return PIPES.find((d) => (g / 3.6e6) / ((Math.PI / 4) * (d.id / 1000) ** 2) <= vmax) || PIPES[PIPES.length - 1];
+  };
+  const sumL = {};
+  out.segs = net.segs.map((s) => {
+    const d = size(s.load, p.gravity), len = segLen(s);
+    sumL[d.dn] = (sumL[d.dn] || 0) + len * 2;
+    return { ...s, dn: d.dn, id: d.id, len };
+  });
+  out.lens = sumL;
+  out.pipeTotal = Object.values(sumL).reduce((a, b) => a + b, 0);
+
+  // Eng uzun halqa bo'yicha taxminiy qarshilik
+  const longest = Math.max(0, ...rads.map((r) => Math.hypot(r.x - boiler.x, r.y - boiler.y) / 100)) * 2.6;
+  const volPipes = out.segs.reduce((a, s) => a + (Math.PI / 4) * (s.id / 100) ** 2 * s.len * 2 * 10, 0);
+  out.volume = out.secs * SEC_L + volPipes + 40;
+
+  if (p.gravity) {
+    const H = 0.42 + p.pit / 100 - 0.55;
+    const head = 9.81 * H * (RHO_55 - RHO_80) + 80;
+    const G = Q / (1.163 * 25);
+    const main = size(Q, true);
+    const loss = fric(G, main.id) * longest * 1.4 + 15;
+    out.gravity = { H, head, loss, ok: H > 0.3 && loss <= head * 0.9, tank: Math.ceil((out.volume * 0.06) / 10) * 10 };
+    if (H <= 0.3) warnings.push("Qozon radiatorlardan yetarli past emas. Qozonxona polini chuqurroq qiling.");
+    if (!out.gravity.ok) warnings.push("Elektrsiz aylanish uchun bosim yetmaydi.");
+    if (out.pipeTotal) out.warningsPipe = "Quvurlar po'lat, ochiq bak cherdakda.";
+  }
+  return out;
+}
+
+export function heatingBom(p, h) {
+  const rows = [];
+  if (!h.rads.length) return rows;
+  const G = "Isitish";
+  rows.push({ g: G, k: "boiler", name: p.gravity ? "Qattiq yoqilg'i qozoni" : "Qozon", spec: `${h.boilerKw} kW`, unit: "dona", qty: 1 });
+  rows.push({ g: G, k: "rad", name: "Radiator seksiyasi", spec: "500 mm", unit: "seksiya", qty: h.secs });
+  rows.push({ g: G, k: "radset", name: "Radiator kranlari va to'plami", spec: "3/4\"", unit: "to'plam", qty: h.rads.length });
+  for (const dn of Object.keys(h.lens).sort((a, b) => a - b)) {
+    rows.push({ g: G, k: "pipe" + dn, name: p.gravity ? "Po'lat quvur" : "PPR quvur", spec: `Ø${dn}`, unit: "m", qty: Math.ceil(h.lens[dn] * 1.1) });
+  }
+  rows.push({ g: G, k: "conn", name: "Radiator ulanish quvuri", spec: "Ø20", unit: "m", qty: Math.ceil(h.rads.length * 2.5) });
+  rows.push({ g: G, k: "pump", name: "Aylanma nasos", spec: "25-60", unit: "dona", qty: 1 });
+  rows.push({ g: G, k: "filter", name: "Loyqa filtr va kranlar", spec: "qozon uchun", unit: "to'plam", qty: 1 });
+  if (p.gravity) {
+    rows.push({ g: G, k: "check", name: "Bypass teskari klapani", spec: "past qarshilikli", unit: "dona", qty: 1 });
+    rows.push({ g: G, k: "tank", name: "Ochiq kengayish baki", spec: `${h.gravity ? h.gravity.tank : 20} l`, unit: "dona", qty: 1 });
+  } else {
+    rows.push({ g: G, k: "vessel", name: "Yopiq kengayish baki", spec: "18 l", unit: "dona", qty: 1 });
+    rows.push({ g: G, k: "safety", name: "Xavfsizlik guruhi", spec: "3 bar", unit: "dona", qty: 1 });
+  }
+  rows.push({ g: "Isitish ishi", k: "l_boiler", name: "Qozonni o'rnatish va ulash", unit: "dona", qty: 1, labor: true });
+  rows.push({ g: "Isitish ishi", k: "l_rad", name: "Radiatorni osish va ulash", unit: "dona", qty: h.rads.length, labor: true });
+  rows.push({ g: "Isitish ishi", k: "l_pipe", name: "Quvur yotqizish", unit: "m", qty: Math.ceil((h.pipeTotal || 0) * 1.1), labor: true });
+  rows.push({ g: "Isitish ishi", k: "l_start", name: "Sinov va ishga tushirish", unit: "dona", qty: 1, labor: true });
+  return rows;
+}

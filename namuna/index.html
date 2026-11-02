@@ -1,0 +1,1145 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light}body{margin:0;font:14px system-ui}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Uy Isitish Loyihasi</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: muhandislik varag'i. 3D model markazda, parametrlar yonida, chizma va jadvallar pastda. */
+:root{
+  --bg:#EDF0F0; --panel:#FAFBFB; --fg:#172126; --muted:#56666D; --line:#CDD6D9;
+  --accent:#9C5219; --hot:#CC3226; --cold:#1C69BA; --sew:#6E7B3C; --ok:#1F7A4D; --bad:#B3261E; --scene:#DAE2E4; --wall:#8B999F;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11181B; --panel:#182226; --fg:#E6ECEE; --muted:#97A7AE; --line:#2E3C42;
+  --accent:#E3A06A; --hot:#F2695C; --cold:#62ABF0; --sew:#B4C275; --ok:#62C995; --bad:#F2857B; --scene:#1B262A; --wall:#5D6E75; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11181B; --panel:#182226; --fg:#E6ECEE; --muted:#97A7AE; --line:#2E3C42;
+  --accent:#E3A06A; --hot:#F2695C; --cold:#62ABF0; --sew:#B4C275; --ok:#62C995; --bad:#F2857B; --scene:#1B262A; --wall:#5D6E75; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body)}
+.wrap{max-width:1360px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:28px}
+h1,h2{font-family:var(--display);font-weight:600;margin:0;text-wrap:balance;letter-spacing:.01em}
+h1{font-size:34px;line-height:1.1}
+h2{font-size:25px;line-height:1.15}
+header p{margin:6px 0 0;color:var(--muted);max-width:76ch}
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-block:1px solid var(--line)}
+.kpi{padding:12px 16px 12px 0;min-width:0}
+.kpi+.kpi{padding-left:16px;border-left:1px solid var(--line)}
+.kpi span{display:block;font-size:12.5px;color:var(--muted)}
+.kpi b{font:600 30px/1.15 var(--display);font-variant-numeric:tabular-nums}
+.kpi b small{font:500 15px var(--body);color:var(--muted);margin-left:3px}
+.work{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
+.stage{position:relative;height:clamp(440px,74vh,760px);background:var(--scene);border:1px solid var(--line);overflow:hidden}
+#gl{position:absolute;inset:0;touch-action:none;cursor:grab}
+#gl canvas{display:block}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lb{position:absolute;left:0;top:0;white-space:nowrap;will-change:transform;font:500 11.5px/1.25 var(--mono);color:#14202a;background:rgba(255,255,255,.86);padding:2px 6px}
+.lb.room{font:600 14px/1.2 var(--display);background:rgba(255,255,255,.9);padding:2px 7px}
+.lb.det{background:#14202a;color:#fff;padding:1px 5px;border-radius:50%}
+.bar{position:absolute;top:10px;left:10px;right:10px;display:flex;flex-wrap:wrap;gap:6px;pointer-events:none}
+.seg{display:flex;pointer-events:auto;background:var(--panel);border:1px solid var(--line)}
+.seg button{all:unset;cursor:pointer;padding:6px 10px;font:500 13px var(--body);color:var(--fg)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--panel)}
+.seg button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#card{position:absolute;left:10px;bottom:10px;max-width:min(340px,calc(100% - 20px));background:var(--panel);border:1px solid var(--line);padding:9px 12px;font-size:13px}
+#card b{display:block;font:600 17px var(--display)}
+#err{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,calc(100% - 32px));background:var(--panel);border:1px solid var(--bad);color:var(--fg);padding:14px 16px}
+.legend{position:absolute;right:10px;bottom:10px;display:grid;gap:2px;background:var(--panel);border:1px solid var(--line);padding:6px 10px;font-size:12px}
+.legend i{display:inline-block;width:18px;height:4px;margin-right:6px;vertical-align:middle}
+aside{display:grid;gap:13px;background:var(--panel);border:1px solid var(--line);padding:16px}
+aside h2{font-size:21px}
+.f{display:grid;gap:4px;min-width:0}
+.f label{font-size:13px;font-weight:500;display:flex;justify-content:space-between;gap:8px}
+.f label output{font-family:var(--mono);color:var(--accent);font-weight:500}
+select{font:14px var(--body);padding:6px 8px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:0;width:100%}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.checks{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px}
+.checks label{display:flex;gap:6px;align-items:center}
+.hint{font-size:12.5px;color:var(--muted);margin:0}
+.u{display:grid;grid-template-columns:auto 1fr;gap:1px 10px;font-size:13px;border-top:1px solid var(--line);padding-top:10px;margin:0}
+.u dt{color:var(--muted)} .u dd{margin:0;text-align:right;font-family:var(--mono);font-size:12.5px}
+section{display:grid;gap:12px;min-width:0}
+.two{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px}
+.two>div{display:grid;gap:12px;align-content:start;min-width:0}
+.scroll{overflow-x:auto}
+#plan{background:var(--panel);border:1px solid var(--line);padding:8px}
+#plan svg{display:block;width:100%;min-width:560px;height:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th{font-size:12.5px;font-weight:500;color:var(--muted);text-align:right;padding:6px 8px;border-bottom:1px solid var(--fg);white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right}
+th:first-child,td:first-child{text-align:left;padding-left:0}
+tfoot td{font-weight:600;border-bottom:0}
+.left th,.left td{text-align:left}
+.bom td:last-child,.bom th:last-child{white-space:nowrap}
+#cost input,#cost-res{font:14px var(--mono);width:112px;max-width:100%;padding:4px 6px;text-align:right;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:0}
+#cost-res{width:100%}
+#cost td.grp{text-align:left;font-weight:600;padding-left:0;padding-top:14px}
+#cost .src{color:var(--muted);font-size:12px;white-space:nowrap}
+.verdict{font-weight:600}
+.verdict.good{color:var(--ok)} .verdict.fail{color:var(--bad)}
+.gravity{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;background:var(--panel);border:1px solid var(--line);padding:18px}
+.gravity>div{display:grid;gap:10px;align-content:start;min-width:0}
+ol.steps{margin:0;padding-left:20px;display:grid;gap:7px;max-width:70ch}
+.notes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}
+.notes ul{margin:0;padding-left:18px;display:grid;gap:6px;max-width:70ch}
+.notes h2{margin-bottom:8px}
+@media (max-width:1000px){
+  .work,.two,.notes,.gravity{grid-template-columns:minmax(0,1fr)}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpi,.kpi+.kpi{padding:10px 0;border-left:0}
+  .legend{display:none}
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Uy Isitish Loyihasi</h1>
+    <p>Bir qavatli uy, orqasida alohida qozonxona, qattiq yoqilg'i qozoni va ikki chuqurli kanalizatsiya. Isitish tizimi nasos bilan ishlaydi, elektr uzilganda suv o'zi aylanadi. Parametrlarni o'zgartirsangiz, hisob, 3D model va chizma birga yangilanadi.</p>
+  </header>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="work">
+    <div class="stage" id="stage">
+      <div id="gl" role="img" aria-label="Uy, isitish va kanalizatsiya tizimining aylantiriladigan 3D modeli"></div>
+      <div id="labels"></div>
+      <div class="bar">
+        <div class="seg" id="modes">
+          <button id="m-cut" data-m="cut" aria-pressed="true">Kesim</button>
+          <button id="m-ghost" data-m="ghost" aria-pressed="false">Faqat tizimlar</button>
+          <button id="m-full" data-m="full" aria-pressed="false">To'liq uy</button>
+        </div>
+        <div class="seg" id="views">
+          <button id="v-iso" data-v="iso">Umumiy</button>
+          <button id="v-top" data-v="top">Tepadan</button>
+          <button id="v-back" data-v="back">Orqadan</button>
+          <button id="v-boiler" data-v="boiler">Qozonxona</button>
+        </div>
+      </div>
+      <div id="card" hidden></div>
+      <div id="err" role="alert" hidden></div>
+      <div class="legend">
+        <span><i style="background:var(--hot)"></i>Issiq suv</span>
+        <span><i style="background:var(--cold)"></i>Qaytish</span>
+        <span><i style="background:var(--sew)"></i>Kanalizatsiya</span>
+      </div>
+    </div>
+
+    <aside>
+      <h2>Parametrlar</h2>
+      <div class="f">
+        <label for="tout">Tashqi hisobiy harorat <output id="tout-o"></output></label>
+        <input type="range" id="tout" min="-25" max="-5" step="1" value="-15">
+      </div>
+      <div class="f">
+        <label for="h">Shift balandligi <output id="h-o"></output></label>
+        <input type="range" id="h" min="2.7" max="3.6" step="0.1" value="3">
+      </div>
+      <div class="f">
+        <label for="pit">Qozonxona poli chuqurligi <output id="pit-o"></output></label>
+        <input type="range" id="pit" min="0.6" max="1.6" step="0.1" value="1">
+      </div>
+      <div class="f">
+        <label for="mat">Devor materiali (40 sm)</label>
+        <select id="mat">
+          <option value="0.70">Pishgan g'isht</option>
+          <option value="0.50">Paxsa yoki guvala</option>
+          <option value="0.20">Gazoblok</option>
+        </select>
+      </div>
+      <div class="f">
+        <label for="ins">Tashqi izolyatsiya</label>
+        <select id="ins">
+          <option value="0">Yo'q</option>
+          <option value="5">5 sm penoplast</option>
+          <option value="10">10 sm penoplast</option>
+        </select>
+      </div>
+      <div class="f">
+        <label for="reg">Nasosli suv rejimi</label>
+        <select id="reg">
+          <option value="80/60">80 / 60 °C</option>
+          <option value="75/60">75 / 60 °C</option>
+          <option value="70/55">70 / 55 °C</option>
+        </select>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="l-heat" checked> Isitish</label>
+        <label><input type="checkbox" id="l-sew" checked> Kanalizatsiya</label>
+        <label><input type="checkbox" id="l-fur" checked> Jihozlar</label>
+      </div>
+      <dl class="u" id="u"></dl>
+      <p class="hint">Modelni sichqoncha bilan aylantiring. Radiator yoki raqamli detal ustiga bossangiz, ma'lumoti chiqadi.</p>
+    </aside>
+  </div>
+
+  <section class="gravity">
+    <div>
+      <h2>Elektr uzilganda nima bo'ladi</h2>
+      <ol class="steps">
+        <li>Nasos va havo ventilyatori to'xtaydi. Ventilyator qopqog'i o'z og'irligi bilan yopiladi, yonish sekinlashadi.</li>
+        <li>Nasos bosimi yo'qolgach, bypass liniyasidagi teskari klapan ochiladi va suv nasosni aylanib o'tadi.</li>
+        <li>Qozonda isigan yengil suv ko'targich bo'ylab cherdakka chiqadi, radiatorda sovib og'irlashib, poldagi quvur bilan qaytib tushadi.</li>
+        <li>Suv qaynab ketsa ham bosim oshmaydi: tizim ochiq bak orqali atmosferaga ulangan, ortiqcha suv to'kish quvuridan chiqadi.</li>
+        <li>Elektr qaytsa, nasos ishga tushadi va teskari klapan o'zi yopiladi. Hech narsani qo'lda burish shart emas.</li>
+      </ol>
+    </div>
+    <div>
+      <h2>O'zi aylanish hisobi</h2>
+      <div class="scroll"><table id="grav"></table></div>
+      <p class="verdict" id="verdict"></p>
+      <p class="hint">Asosiy shart: qozon radiatorlardan past, quvurlar yo'g'on, qozon va ochiq bak orasida birorta kran yo'q.</p>
+    </div>
+  </section>
+
+  <div class="two">
+    <div>
+      <h2>Reja va tizimlar sxemasi</h2>
+      <div class="scroll" id="plan"></div>
+      <p class="hint">O'lchamlar santimetrda. Issiq suv cherdakda (uzuq chiziq), qaytish polda (yaxlit chiziq) yuradi. Kanalizatsiya yashil rangda.</p>
+    </div>
+    <div>
+      <h2>Xonalar bo'yicha hisob</h2>
+      <div class="scroll"><table id="rooms"></table></div>
+      <h2>Issiqlik qayerga ketadi</h2>
+      <div class="scroll"><table id="split"></table></div>
+      <h2>Kanalizatsiya</h2>
+      <div class="scroll"><table class="left" id="sew"></table></div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Isitish tizimi detallari</h2>
+    <p class="hint">Raqamlar 3D modeldagi belgilarga mos. "Qozonxona" ko'rinishida ular yaqindan chiqadi.</p>
+    <div class="scroll"><table class="left" id="dets"></table></div>
+  </section>
+
+  <section>
+    <h2>Materiallar ro'yxati</h2>
+    <div class="scroll"><table class="bom" id="bom"></table></div>
+  </section>
+
+  <section>
+    <h2>Usta xizmati narxi</h2>
+    <p class="hint">Narxlar materiallarsiz, faqat ish haqi. Hajmlar loyihadan avtomatik olinadi. Bozorda birlik narxlari deyarli e'lon qilinmagan, shuning uchun aksariyati taxminiy: ularni ustalar aytgan narx bilan almashtirsangiz, jami qayta hisoblanadi.</p>
+    <div class="kpis" id="cost-kpis"></div>
+    <div class="scroll"><table class="bom" id="cost"></table></div>
+    <div class="f" style="max-width:220px">
+      <label for="cost-res">Kutilmagan xarajat, %</label>
+      <input type="number" id="cost-res" min="0" max="50" step="1" value="10">
+    </div>
+    <p class="hint">Kanalizatsiya chuqurlari, qozonxona binosi, tom va asosiy uy qurilishi bu hisobga kirmagan. E'lon qilingan ochiq narxlar: qozon o'rnatish 3 mln so'mdan (<a href="https://www.prom.uz/tags/ustanovka-kotlov/">Prom.uz</a>), tizimni sozlash 1 mln so'mdan (<a href="https://www.ustabor.uz/ru/catalog/heating">Ustabor</a>), kanalizatsiya almashtirish 300 ming so'mdan (<a href="https://www.prom.uz/uz/company/izumrud-santexnik/">Izumrud Santexnik</a>). Bu "dan" narxlar, sanasi ko'rsatilmagan.</p>
+  </section>
+
+  <div class="notes">
+    <div>
+      <h2>Qabul qilingan farazlar</h2>
+      <ul>
+        <li>Chizmadagi 360, 350, 360 va 750 ichki o'lcham, ichki va tashqi devorlar 40 sm.</li>
+        <li>Qozonxona rasmdagidek o'rta chap devor ro'parasida, ichki o'lchami 2,0 × 2,0 m, devori 20 sm. Kirish eshigi orqa devorda, zinasi bilan.</li>
+        <li>Rasmdagi qozon qattiq yoqilg'ida ishlaydigan, havo ventilyatorli qozon deb olindi. Quvvati ehtiyotdan 30 % ortiq tanlangan.</li>
+        <li>Oshxona jihozlari bitta devorda: pastda shkaf, rakovina va duxovka, tepada shkaf va so'rg'ich.</li>
+        <li>Cherdak bor, issiq suv quvuri uning ichida izolyatsiya bilan yuradi.</li>
+        <li>Cho'yan radiator MS-140-500: seksiyasi ΔT 70 da 160 W. Keng kanali o'zi aylanishga mos va ochiq tizimda zanglamaydi.</li>
+        <li>Burchak xonalarda 22 °C, oshxonada 20 °C, hammomda 25 °C. Shift U = 0,5, pol U = 0,6, grunt +5 °C.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Quruvchi bilan aniqlang</h2>
+      <ul>
+        <li><b>Kirish eshigi:</b> oshxona old devorining o'rtasida, 100 × 210 sm, issiqlik izolyatsiyali (U = 2,0) deb olindi. Eshik yonida tambur bo'lmasa, oshxonaga sovuq havo tez kiradi.</li>
+        <li><b>Oshxona:</b> rasmda derazasi yo'q, tabiiy yorug'lik va shamollatish uchun deraza qo'shishni o'ylab ko'ring.</li>
+        <li><b>Chuqurlar masofasi:</b> rasmda uyga yaqin chizilgan, men poydevordan 5 m uzoqlikda qo'ydim. Yaqin qo'yilsa, grunt namlanib poydevorga zarar yetkazadi. Ichimlik suv qudug'idan masofa va mahalliy talabni sanitariya xizmatidan aniqlang.</li>
+        <li><b>Grunt:</b> chuqur faqat suv singadigan gruntda ishlaydi va yer osti suvi sathidan yuqorida bo'lishi kerak.</li>
+        <li><b>Hojatxona:</b> rasmda yo'q. Qo'shilsa, hammom chuquri o'rniga germetik idish kerak bo'ladi.</li>
+        <li><b>Qozonxona:</b> yoqilg'i uchun joy alohida kerak bo'ladi. Mo'ri tom cho'qqisidan kamida 0,5 m baland bo'lsin. Yonuvchi materiallarni qozondan uzoq saqlang.</li>
+        <li>Bu sahifa dastlabki loyiha, rasmiy hujjat emas. Qurilishdan oldin mutaxassis tekshirishi kerak.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const fmt=(n,d=0)=>n.toLocaleString("ru-RU",{minimumFractionDigits:d,maximumFractionDigits:d}).replace(/ /g," ");
+
+/* ---------- Geometriya (m). x: chapdan o'ngga, z: orqa devordan oldga, y: pol = 0 ---------- */
+const T=.4, DEPTH=7.5, X1=3.6, X2=4.0, X3=7.5, X4=7.9, XE=11.5, Z1=2.0, Z2=2.4;
+const WIN_W=1.5, WIN_H=1.5, SILL=.9, WINDOWS=[1.8,9.7];
+const DOOR={c:DEPTH-1.68, w:.9, h:2.1}, BATH={c:8.75, w:.8, h:2.1}, ENTRY={c:5.75, w:1.0, h:2.1};
+const AX0=2.8, AX1=4.8, AT=.2, AZ0=-2.4, AZ1=-T;       /* qozonxona ichki chegarasi */
+const BX=3.2, BZ=-1.6, BW=.55, BD=.85, BH=1.35;        /* qozon */
+const SEC_W=.093, SEC_D=.14, RAD_H=.58, RAD_Y=.13, Q70=160, SEC_L=1.45;
+const OFF_S=.12, OFF_R=.20, Y_R=.1;
+const PITS=[{x:8.9,z:-6.4,r:1,name:"Oshxona chuquri"},{x:11.2,z:-6.4,r:1,name:"Hammom chuquri"}];
+const PIT_DEPTH=3;
+const KITCH=[{name:"Rakovina",x:4.35},{name:"Duxovka",x:5.75}];
+const BATHFX={sink:8.45,washer:10.05,shower:11.0};
+
+const ROOMS=[
+  {id:"m",name:"Mehmonxona",x0:0,x1:X1,z0:0,z1:DEPTH,L:[4.2,8.3,4.2],win:1,ti:22,n:.5,
+   slots:[{wall:"front",c:1.8},{wall:"left",c:2.0},{wall:"left",c:5.0}],floor:"wood"},
+  {id:"o",name:"Oshxona",x0:X2,x1:X3,z0:0,z1:DEPTH,L:[3.9,3.9],win:0,door:1,ti:20,n:1,
+   slots:[{wall:"p1",c:3.4},{wall:"p3",c:3.4}],floor:"tile"},
+  {id:"h",name:"Hammom",x0:X4,x1:XE,z0:0,z1:Z1,L:[4.2,2.6],win:0,ti:25,n:1,
+   slots:[{wall:"p2",c:10.4}],floor:"bath"},
+  {id:"y",name:"Yashash xonasi",x0:X4,x1:XE,z0:Z2,z1:DEPTH,L:[4.2,5.7],win:1,ti:22,n:.5,
+   slots:[{wall:"front",c:9.7},{wall:"right",c:4.6}],floor:"wood"}
+];
+const PIPES=[{dn:20,id:21.2,inch:'3/4"'},{dn:25,id:27.1,inch:'1"'},{dn:32,id:35.9,inch:'1 1/4"'},{dn:40,id:41,inch:'1 1/2"'},{dn:50,id:53,inch:'2"'},{dn:65,id:68,inch:'2 1/2"'},{dn:80,id:80.5,inch:'3"'}];
+const byDn=d=>PIPES.find(p=>p.dn===d);
+const PIPE_SETS=[[40,32,25],[50,40,32],[65,50,40],[80,65,50]];
+const BOILERS=[12,15,20,25,30,40,50];
+const RHO={80:971.8,55:985.7};
+
+/* ---------- Hisob ---------- */
+function readParams(){
+  const [ts,tr]=$("reg").value.split("/").map(Number);
+  return {tout:+$("tout").value,h:+$("h").value,pit:+$("pit").value,lam:+$("mat").value,ins:+$("ins").value/100,ts,tr};
+}
+/* Solishtirma ishqalanish, Pa/m. Laminar yoki Altshul formulasi */
+function fric(gLh,idMm){
+  const d=idMm/1000, v=gLh/3.6e6/(Math.PI/4*d*d), nu=.41e-6, rho=975;
+  const Re=Math.max(v*d/nu,1), f=Re<2300?64/Re:.11*Math.pow(.2/idMm+68/Re,.25);
+  return f/d*rho*v*v/2;
+}
+function compute(p){
+  const Uw=1/(.16+.04+.4/p.lam+p.ins/.04), Uwin=1.6, Udoor=2, Uc=.5, Uf=.6, tg=5;
+  const totals={wall:0,win:0,door:0,ceil:0,floor:0,air:0};
+  const tm=(p.ts+p.tr)/2;
+  const rads=[]; let idx=0;
+  const rooms=ROOMS.map(r=>{
+    const A=(r.x1-r.x0)*(r.z1-r.z0), V=A*p.h, dT=r.ti-p.tout;
+    const Awin=r.win*WIN_W*WIN_H, Adoor=(r.door||0)*ENTRY.w*ENTRY.h, Awall=r.L.reduce((a,b)=>a+b,0)*p.h-Awin-Adoor;
+    const q={wall:Awall*Uw*dT,win:Awin*Uwin*dT,door:Adoor*Udoor*dT,ceil:A*Uc*.9*dT,floor:A*Uf*(r.ti-tg),air:.34*V*r.n*dT};
+    const Q=Object.values(q).reduce((a,b)=>a+b,0);
+    for(const k in q) totals[k]+=q[k];
+    const qs=Q70*Math.pow((tm-r.ti)/70,1.3);
+    const sec=Math.max(4,Math.ceil(Math.ceil(Q/qs)/r.slots.length));
+    const list=r.slots.map(s=>{
+      const w=sec*SEC_W, o={...s,room:r,sec,w,no:++idx,power:sec*qs};
+      rads.push(o); return o;
+    });
+    return {r,A,V,Q,qs,sec,count:list.length,total:sec*list.length,list};
+  });
+  const Q=rooms.reduce((a,x)=>a+x.Q,0);
+  const need=Q*1.3/1000;
+  const boiler=BOILERS.find(b=>b>=need)||BOILERS[BOILERS.length-1];
+  const dt=p.ts-p.tr;
+  const sumQ=ids=>rooms.filter(x=>ids.includes(x.r.id)).reduce((a,x)=>a+x.Q,0);
+  return {Uw,Uwin,Uc,Uf,rooms,rads,Q,need,boiler,totals,dt,sumQ,flow:w=>w/(1.163*dt)};
+}
+
+function layoutPipes(c,p){
+  const R=(id,i)=>c.rooms.find(x=>x.r.id===id).list[i];
+  const near=r=>r.c-r.w/2-.03, far=r=>r.c+r.w/2+.03;
+  const mF=R("m",0), o1=R("o",0), o2=R("o",1), hP=R("h",0), yF=R("y",0);
+  const s=OFF_S, r=OFF_R, YA=p.h+.15, zf=DEPTH-s, zr=DEPTH-r;
+  const yBoilTop=-p.pit+BH, yRet=-p.pit+.25;
+  const A=pts=>pts.map(q=>[q[0],q[1],YA]), F=pts=>pts.map(q=>[q[0],q[1],Y_R]);
+  const paths=[
+    {k:"s",tier:"main",pts:[[BX,BZ+.25,yBoilTop],[BX,BZ+.25,YA],[BX,s,YA]]},
+    {k:"s",br:"left",pts:A([[BX,s],[s,s],[s,zf],[near(mF),zf]])},
+    {k:"s",br:"right",pts:A([[BX,s],[XE-s,s],[XE-s,zf],[near(yF),zf]])},
+    {k:"s",br:"right",pts:A([[X2+s,s],[X2+s,near(o1)]])},
+    {k:"s",br:"right",pts:A([[X3-s,s],[X3-s,near(o2)]])},
+    {k:"s",br:"right",pts:A([[near(hP),s],[near(hP),Z1-s]])},
+    {k:"r",br:"left",pts:F([[far(mF),zr],[r,zr],[r,r],[BX,r]])},
+    {k:"r",br:"right",pts:F([[far(yF),zr],[XE-r,zr],[XE-r,r],[BX,r]])},
+    {k:"r",br:"right",pts:F([[far(hP),Z1-r],[XE-r,Z1-r]])},
+    {k:"r",br:"right",pts:F([[X2+r,far(o1)],[X2+r,r]])},
+    {k:"r",br:"right",pts:F([[X3-r,far(o2)],[X3-r,r]])},
+    {k:"r",tier:"main",pts:[[BX,r,Y_R],[BX,-.8,Y_R],[BX,-.8,yRet],[BX,BZ+BD/2,yRet]]}
+  ];
+  const plen=pts=>pts.slice(1).reduce((a,q,i)=>a+Math.hypot(q[0]-pts[i][0],q[1]-pts[i][1],q[2]-pts[i][2]),0);
+  const lens={left:0,right:0,main:0};
+  paths.forEach(x=>{x.len=plen(x.pts);lens[x.tier||x.br]+=x.len});
+  const loop=(si,ri)=>plen(paths[si].pts)+plen(paths[ri].pts);
+  const loops={left:loop(1,6),right:loop(2,7)};
+
+  /* O'zi aylanish: 80/55 °C va to'liq issiqlik */
+  const dtG=25, H=(RAD_Y+RAD_H/2)-(-p.pit+.55), cool=80;
+  const head=9.81*H*(RHO[55]-RHO[80])+cool;
+  const gOf=w=>w/(1.163*dtG);
+  const loss=(set,fr)=>{
+    const [m,b,t]=set.map(d=>byDn(d).id), G=gOf(c.Q*fr);
+    const side=(Qb,len)=>{const gb=gOf(Qb*fr);
+      return (fric(G,m)*lens.main+fric(gb,b)*len*.6+fric(gb/2,t)*len*.4)*1.4+15*fr};
+    return Math.max(side(c.sumQ(["m"]),loops.left),side(c.sumQ(["o","h","y"]),loops.right));
+  };
+  const set=PIPE_SETS.find(q=>loss(q,1)<=head*.6)||PIPE_SETS[PIPE_SETS.length-1];
+  const lossPa=loss(set,1);
+  let share=1; while(share>.1&&loss(set,share)>head*.9) share-=.05;
+  return {paths,lens,loops,YA,yBoilTop,yRet,set,head,H,lossPa,share,dtG,cool,gG:gOf(c.Q)};
+}
+
+function radGeom(rad){
+  const c=rad.c, inset=.09;
+  switch(rad.wall){
+    case "front":return {p:[c,DEPTH-inset],t:[1,0],n:[0,-1]};
+    case "left": return {p:[inset,c],t:[0,1],n:[1,0]};
+    case "right":return {p:[XE-inset,c],t:[0,1],n:[-1,0]};
+    case "p1":   return {p:[X2+inset,c],t:[0,1],n:[1,0]};
+    case "p3":   return {p:[X3-inset,c],t:[0,1],n:[-1,0]};
+    case "p2":   return {p:[c,Z1-inset],t:[1,0],n:[0,-1]};
+  }
+}
+/* Kanalizatsiya yo'llari: [x,z,y]. Ichkarida Ø50 3 %, tashqarida Ø110 2 % */
+function sewerPaths(){
+  const yI=-.14, yO=-.75;
+  const [a,b]=PITS;
+  const inK=[[4.35,.42,.75],[4.35,.42,yI],[5.4,.42,yI-.03],[5.4,-.75,yO]];
+  const inB=[[8.45,.42,.55],[8.45,.42,yI],[11.0,.42,yI-.08],[11.0,-.75,yO-.02]];
+  const wash=[[10.05,.42,.55],[10.05,.42,yI-.05]];
+  const shower=[[11.0,.75,.0],[11.0,.75,yI-.05],[11.0,.42,yI-.08]];
+  const dA=Math.hypot(a.x-5.4,a.z+.75), ka=(dA-a.r)/dA;
+  const outK=[[5.4,-.75,yO],[5.4+(a.x-5.4)*ka,-.75+(a.z+.75)*ka,yO-(dA-a.r)*.02]];
+  const dB=Math.hypot(b.x-11,b.z+.75), kb=(dB-b.r)/dB;
+  const outB=[[11,-.75,yO-.02],[11+(b.x-11)*kb,-.75+(b.z+.75)*kb,yO-.02-(dB-b.r)*.02]];
+  const len=q=>q.slice(1).reduce((s,u,i)=>s+Math.hypot(u[0]-q[i][0],u[1]-q[i][1]),0);
+  return {thin:[inK,inB,wash,shower],thick:[outK,outB],dK:len(outK),dB:len(outB),
+          L50:len(inK)+len(inB)+len(wash)+len(shower)+2};
+}
+
+/* Detallar ro'yxati: raqamlar 3D modeldagi belgilar bilan bir xil */
+function details(c,lay,p){
+  const y0=-p.pit, top=y0+BH, D=[];
+  const add=(name,where,text,pos)=>D.push({no:D.length+1,name,where,text,pos});
+  add(`Qozon ${c.boiler} kW`,"Qozonxona chuquri",`Qattiq yoqilg'i. Radiatorlardan ${fmt(lay.H,2)} m past turadi, bu suvni o'zi aylantiradi.`,[BX,top+.12,BZ]);
+  add("Havo ventilyatori","Qozon yoni","Yonishni boshqaradi. Elektr uzilsa qopqog'i o'zi yopiladi va havo kamayadi.",[BX+.42,y0+.32,BZ+.3]);
+  add("Boshqaruv bloki","Qozonxona devori","Harorat bo'yicha nasos va ventilyatorni boshqaradi. Nasos 45 °C dan yuqorida yonadi.",[AX0+.03,1.35,-.9]);
+  add("Termometr va manometr","Qozon chiqishi","Suv harorati va tizimdagi bosimni ko'rsatadi. Harorat 90 °C dan oshmasin.",[BX,top+.22,BZ+.25]);
+  add("Ko'targich quvur",`Ø${lay.set[0]}`,"Qozondan cherdakka to'g'ri ko'tariladi. Bu quvurda kran bo'lmasligi shart.",[BX,1.6,BZ+.25]);
+  add("Ochiq kengayish baki","Cherdak, eng baland nuqta","Suv kengayganda qabul qiladi, havoni chiqaradi va bosimni oshirmaydi. Issiqlik izolyatsiyasi bilan.",[BX,p.h+1.2,2.2]);
+  add("To'kish quvuri","Bakdan qozonxonagacha","Ortiqcha suvni trapga olib tushadi. Unga kran qo'yilmaydi.",[BX+.07,1.0,-1.0]);
+  add("Teskari klapan (bypass)","Qaytish liniyasi","Kam qarshilikli, gorizontal yoki vertikal holatiga mos tanlanadi. Elektr uzilganda suv shu yerdan o'tadi.",[BX,lay.yRet*.45,-.8]);
+  add("Aylanma nasos","Bypass tarmog'i","Nasos valini gorizontal o'rnating. Faqat qaytish liniyasida, sovuqroq suvda ishlaydi.",[BX-.45,lay.yRet*.45,-.8]);
+  add("Nasos kranlari, 2 dona","Nasos ikki tomonida","Nasosni tizim suvini to'kmasdan almashtirish uchun.",[BX-.45,.1,-.8]);
+  add("Loyqa filtr","Qaytish, tarmoqdan oldin","To'la kesimli, tiqilib qolsa aylanish to'xtaydi. Mavsumda bir marta tozalanadi.",[BX,Y_R,-.42]);
+  add("To'ldirish krani","Qaytish liniyasi","Tizimga suv quyish uchun. Bakdan suv chiqa boshlaguncha sekin to'ldiriladi.",[BX+.3,Y_R-.15,-.8]);
+  add("To'kish krani","Eng past nuqta","Ta'mirda va uzoq muddat yashamaganda suvni to'kish uchun.",[BX+.3,lay.yRet-.1,BZ+BD/2+.1]);
+  add("Tutun quvuri va mo'ri","Orqa devor tashqarisi","Qozon chiqishidan kichik bo'lmasin, tom cho'qqisidan kamida 0,5 m baland.",[BX+.1,p.h+.9,-2.8]);
+  add("Havo panjarasi","Qozonxona pastida","Yonish uchun doim ochiq turadi, kamida 200 cm² kesim.",[AX1+.1,.3,-1.8]);
+  add("Havo chiqarish krani","Har bir radiatorda","Radiatorni birinchi to'ldirishda havodan bo'shatish uchun.",null);
+  return D;
+}
+
+/* ---------- 3D ---------- */
+let renderer,scene,camera,controls,group,dotsS,dotsR,groundMesh,flowPaths=[],pickables=[],labels=[];
+let mode="cut", tween=null, state=null, needsRender=true;
+const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const CAM={
+  iso:{pos:[14,10.5,15.5],tgt:[5.75,.2,2.6]},
+  top:{pos:[5.8,27,.6],tgt:[5.8,0,.5]},
+  back:{pos:[-2.5,8,-13],tgt:[6,0,-2.2]},
+  boiler:{pos:[6.6,3.2,-4.6],tgt:[3.5,-.3,-1.4]}
+};
+const MAT={};
+function initGL(){
+  const box=$("gl");
+  dummy=new THREE.Object3D(); tv=new THREE.Vector3(); proj=new THREE.Vector3();
+  ray=new THREE.Raycaster(); ptr=new THREE.Vector2();
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.domElement.addEventListener("webglcontextlost",e=>{
+    e.preventDefault(); fail("Videokarta 3D ko'rinishni to'xtatdi. Sahifani yangilang.");
+  });
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.outputEncoding=THREE.sRGBEncoding;
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  box.appendChild(renderer.domElement);
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(38,1,.1,200);
+  camera.position.set(...CAM.iso.pos);
+  controls=new THREE.OrbitControls(camera,renderer.domElement);
+  controls.target.set(...CAM.iso.tgt);
+  controls.enableDamping=true;
+  controls.maxPolarAngle=Math.PI*.495;
+  controls.minDistance=2; controls.maxDistance=50;
+  controls.addEventListener("start",()=>{tween=null});
+
+  scene.add(new THREE.HemisphereLight(0xffffff,0x8a9498,.75));
+  const sun=new THREE.DirectionalLight(0xfff3e4,.8);
+  sun.position.set(14,22,14); sun.target.position.set(5.75,0,1);
+  sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
+  Object.assign(sun.shadow.camera,{left:-16,right:16,top:16,bottom:-16,near:1,far:60});
+  sun.shadow.bias=-.0005;
+  scene.add(sun,sun.target);
+
+  const std=(color,o={})=>new THREE.MeshStandardMaterial({color,roughness:.85,...o});
+  Object.assign(MAT,{
+    wall:std(0xc9c2b6), annex:std(0xb8ae9f), ghost:new THREE.MeshStandardMaterial({color:0x8a9aa2,transparent:true,opacity:.13,depthWrite:false}),
+    wood:std(0xb89468), tile:std(0xc7cdc9), bath:std(0xa9c4cf), concrete:std(0x9a9c98),
+    plinth:std(0x8d8f8c), ground:std(0x79866f), roof:std(0x7d4f3b,{side:THREE.DoubleSide}), brick:std(0x6f6f70,{side:THREE.DoubleSide}),
+    lid:new THREE.MeshStandardMaterial({color:0x8d8f8c,transparent:true,opacity:.45,depthWrite:false}),
+    glass:new THREE.MeshStandardMaterial({color:0x9fd0e8,transparent:true,opacity:.4,roughness:.1}),
+    frame:std(0xf1f1ee), door:std(0x8a5f3b), step:std(0x9c7a58),
+    rad:std(0xd9dcdd,{roughness:.6}), orange:std(0xe2701f,{roughness:.45}), dark:std(0x2b3338), steel:std(0xb9c0c4,{metalness:.5,roughness:.4}),
+    white:std(0xf3f4f4,{roughness:.4}), red:std(0xb42128,{roughness:.5}), tank:std(0x9aa7ad,{metalness:.4,roughness:.5}),
+    hot:std(0xd8392c,{roughness:.4}), cold:std(0x2574cc,{roughness:.4}), sew:std(0x8b9a3e,{roughness:.5}), over:std(0x7fb6c2,{roughness:.5}),
+    brass:std(0xc99a3a,{metalness:.5,roughness:.4})
+  });
+  /* Yer: qozonxona va chuqurlar joyi ochiq */
+  const sh=new THREE.Shape(); sh.moveTo(-45,-45); sh.lineTo(45,-45); sh.lineTo(45,45); sh.lineTo(-45,45); sh.closePath();
+  const hole=new THREE.Path();
+  hole.moveTo(AX0-AT,-(AZ0-AT)); hole.lineTo(AX1+AT,-(AZ0-AT)); hole.lineTo(AX1+AT,-AZ1); hole.lineTo(AX0-AT,-AZ1); hole.closePath();
+  sh.holes.push(hole);
+  PITS.forEach(q=>{const c=new THREE.Path(); c.absarc(q.x,-q.z,q.r,0,Math.PI*2,true); sh.holes.push(c)});
+  groundMesh=new THREE.Mesh(new THREE.ShapeGeometry(sh,32),MAT.ground);
+  groundMesh.rotation.x=-Math.PI/2; groundMesh.position.y=-.3; groundMesh.receiveShadow=true; scene.add(groundMesh);
+
+  group=new THREE.Group(); scene.add(group);
+  const dot=new THREE.SphereGeometry(.035,10,8);
+  dotsS=new THREE.InstancedMesh(dot,new THREE.MeshBasicMaterial({color:0xffc4a8}),260);
+  dotsR=new THREE.InstancedMesh(dot,new THREE.MeshBasicMaterial({color:0xbcdcff}),260);
+  scene.add(dotsS,dotsR);
+
+  new ResizeObserver(resize).observe($("stage"));
+  resize();
+  syncTheme();
+  new MutationObserver(syncTheme).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",syncTheme);
+
+  let down=null;
+  renderer.domElement.addEventListener("pointerdown",e=>{down=[e.clientX,e.clientY]});
+  renderer.domElement.addEventListener("pointerup",e=>{
+    if(down&&Math.hypot(e.clientX-down[0],e.clientY-down[1])<5) pick(e);
+  });
+  requestAnimationFrame(tick);
+}
+function syncTheme(){scene.background=new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue("--scene").trim())}
+function resize(){
+  const b=$("stage").getBoundingClientRect();
+  if(!b.width||!b.height) return;
+  renderer.setSize(b.width,b.height);
+  camera.aspect=b.width/b.height;
+  camera.fov=b.width<620?58:38;
+  camera.updateProjectionMatrix();
+}
+function box(x0,x1,y0,y1,z0,z1,mat,shadow=true){
+  if(x1-x0<=.001||y1-y0<=.001||z1-z0<=.001) return null;
+  const m=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,y1-y0,z1-z0),mat);
+  m.position.set((x0+x1)/2,(y0+y1)/2,(z0+z1)/2);
+  m.castShadow=shadow&&mat!==MAT.ghost; m.receiveShadow=true;
+  group.add(m); return m;
+}
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+const P3=q=>V(q[0],q[2],q[1]);
+function tube(a,b,r,mat){
+  const d=b.clone().sub(a), len=d.length();
+  if(len<.001) return;
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,len,10),mat);
+  m.position.copy(a).addScaledVector(d,.5);
+  m.quaternion.setFromUnitVectors(V(0,1,0),d.normalize());
+  group.add(m); return m;
+}
+function poly(pts,r,mat){
+  pts.forEach((p,i)=>{
+    if(i) tube(pts[i-1],p,r,mat);
+    const s=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),mat); s.position.copy(p); group.add(s);
+  });
+}
+function ball(p,r,mat){const s=new THREE.Mesh(new THREE.SphereGeometry(r,14,10),mat); s.position.copy(p); group.add(s); return s}
+function valve(p,mat=MAT.brass){ball(p,.035,mat); box(p.x-.05,p.x+.05,p.y+.03,p.y+.05,p.z-.012,p.z+.012,MAT.red,false)}
+/* Teshikli devor: axis "x" bo'lsa devor x bo'ylab, f0..f1 uning qalinligi */
+function wall(axis,f0,f1,a,b,ops,H,mat,base=0){
+  const seg=(s0,s1,y0,y1)=>{
+    y1=Math.min(y1,H); if(y1<=y0) return;
+    axis==="x"?box(s0,s1,y0,y1,f0,f1,mat):box(f0,f1,y0,y1,s0,s1,mat);
+  };
+  let cur=a;
+  ops.slice().sort((p,q)=>p.a-q.a).forEach(o=>{
+    seg(cur,o.a,base,H); seg(o.a,o.b,base,o.y0); seg(o.a,o.b,o.y1,H); cur=o.b;
+  });
+  seg(cur,b,base,H);
+}
+function tri(v,mat){
+  const g=new THREE.BufferGeometry();
+  g.setAttribute("position",new THREE.Float32BufferAttribute(v,3));
+  g.computeVertexNormals();
+  const m=new THREE.Mesh(g,mat); m.castShadow=mat!==MAT.ghost; group.add(m);
+}
+function buildHouse(p){
+  const H=mode==="cut"?1.2:p.h, W=mode==="ghost"?MAT.ghost:MAT.wall, ghost=mode==="ghost";
+  const wins=WINDOWS.map(c=>({a:c-WIN_W/2,b:c+WIN_W/2,y0:SILL,y1:SILL+WIN_H}));
+  const en={a:ENTRY.c-ENTRY.w/2,b:ENTRY.c+ENTRY.w/2,y0:0,y1:ENTRY.h};
+  const front=[...wins,en];
+  const dr={a:DOOR.c-DOOR.w/2,b:DOOR.c+DOOR.w/2,y0:0,y1:DOOR.h};
+  const bt={a:BATH.c-BATH.w/2,b:BATH.c+BATH.w/2,y0:0,y1:BATH.h};
+  wall("x",-T,0,-T,XE+T,[],H,W);
+  wall("x",DEPTH,DEPTH+T,-T,XE+T,front,H,W);
+  wall("z",-T,0,0,DEPTH,[],H,W);
+  wall("z",XE,XE+T,0,DEPTH,[],H,W);
+  wall("z",X1,X2,0,DEPTH,[dr],H,W);
+  wall("z",X3,X4,0,DEPTH,[dr],H,W);
+  wall("x",Z1,Z2,X4,XE,[bt],H,W);
+
+  const base=ghost?MAT.ghost:MAT.plinth;
+  box(-T,XE+T,-.3,-.02,-T,DEPTH+T,base);
+  ROOMS.forEach(r=>box(r.x0,r.x1,-.02,0,r.z0,r.z1,ghost?MAT.ghost:MAT[r.floor],false));
+  box(X1,X2,-.02,0,dr.a,dr.b,ghost?MAT.ghost:MAT.tile,false); box(X3,X4,-.02,0,dr.a,dr.b,ghost?MAT.ghost:MAT.tile,false);
+
+  if(!ghost){
+    const y1=Math.min(SILL+WIN_H,H);
+    wins.forEach(o=>{
+      if(y1>SILL){
+        box(o.a,o.b,SILL,y1,DEPTH+.18,DEPTH+.21,MAT.glass,false);
+        box(o.a,o.b,SILL-.04,SILL,DEPTH-.06,DEPTH+.46,MAT.frame,false);
+      }
+    });
+    const dh=Math.min(DOOR.h,H);
+    box(en.a,en.b,0,dh,DEPTH+.16,DEPTH+.22,MAT.door);
+    box(en.a-.5,en.b+.5,-.3,-.03,DEPTH+T,DEPTH+T+1.2,MAT.concrete);
+    box(X1-.9,X1,0,dh,dr.b-.02,dr.b+.02,MAT.door);
+    box(X4,X4+.9,0,dh,dr.b-.02,dr.b+.02,MAT.door);
+    box(bt.a-.02,bt.a+.02,0,dh,Z2,Z2+.8,MAT.door);
+  }
+  /* Qozonxona: pol yerdan past, kirish orqa devorda */
+  const AH=mode==="cut"?-.05:p.h-.1, AW=ghost?MAT.ghost:MAT.annex, yP=-p.pit;
+  const dA={a:AX1-.75,b:AX1-.05,y0:0,y1:2.0};
+  wall("x",AZ0-AT,AZ0,AX0-AT,AX1+AT,[dA],AH,AW,yP);
+  wall("z",AX0-AT,AX0,AZ0,AZ1,[],AH,AW,yP);
+  wall("z",AX1,AX1+AT,AZ0,AZ1,[{a:-1.95,b:-1.65,y0:.2,y1:.4}],AH,AW,yP);
+  box(AX0,AX1,yP,-.3,AZ1-.02,AZ1,ghost?MAT.ghost:MAT.concrete,false);
+  box(AX0,AX1,yP-.1,yP,AZ0,AZ1,ghost?MAT.ghost:MAT.concrete,false);
+  const n=Math.max(2,Math.round(p.pit/.2)), rise=p.pit/n, tread=Math.min(.3,1.9/n);
+  for(let i=0;i<n;i++){
+    const zA=AZ0+i*tread;
+    box(AX1-.65,AX1,yP,-i*rise-rise*0,zA,zA+tread,MAT.step);
+  }
+  /* Mo'ri */
+  const chimTop=mode==="cut"?-.05:p.h+2.5;
+  box(BX-.25,BX+.25,-.3,chimTop,AZ0-AT-.5,AZ0-AT,ghost?MAT.ghost:MAT.annex);
+
+  if(mode==="full"){
+    const ov=.45, x0=-T-ov,x1=XE+T+ov,z0=-T-ov,z1=DEPTH+T+ov,zm=DEPTH/2,y=p.h,yr=p.h+1.9;
+    tri([x0,y,z0, x1,y,z0, x1,yr,zm,  x0,y,z0, x1,yr,zm, x0,yr,zm,
+         x0,y,z1, x0,yr,zm, x1,yr,zm,  x0,y,z1, x1,yr,zm, x1,y,z1,
+         x0,y,z0, x0,yr,zm, x0,y,z1,   x1,y,z0, x1,y,z1, x1,yr,zm],MAT.roof);
+    /* Qozonxona tomi: uy tomi ostidan orqaga qiya */
+    const ax0=AX0-AT-.2, ax1=AX1+AT+.2, zb=AZ0-AT-.3, zf=AZ1, yf=p.h+.45, yb=p.h-.2;
+    tri([ax0,yf,zf, ax0,yb,zb, ax1,yb,zb,  ax0,yf,zf, ax1,yb,zb, ax1,yf,zf],MAT.roof);
+    const wy=p.h-.1;
+    [[AX0-AT,1],[AX1+AT,-1]].forEach(q=>{
+      tri([q[0],wy,AZ0-AT, q[0],wy,zf, q[0],yf,zf],MAT.annex);
+    });
+  }
+}
+function buildFurniture(p){
+  /* Oshxona: orqa devorda bitta jihoz qatori */
+  box(X2+.03,X3-.03,0,.86,.02,.62,MAT.red);
+  box(X2+.03,X3-.03,.86,.9,.0,.65,MAT.white,false);
+  box(5.45,6.05,.1,.8,.62,.64,MAT.dark,false);
+  ball(V(4.35,.92,.32),.09,MAT.steel);
+  poly([V(4.35,.9,.12),V(4.35,1.1,.12),V(4.35,1.13,.22)],.012,MAT.steel);
+  if(mode!=="cut"){
+    box(X2+.03,5.35,1.5,2.2,.0,.34,MAT.red);
+    box(6.15,X3-.03,1.5,2.2,.0,.34,MAT.red);
+    box(5.4,6.1,1.58,1.68,.0,.48,MAT.steel);
+    box(5.6,5.9,1.68,2.3,.0,.28,MAT.steel);
+  }
+  /* Hammom: rakovina, ustma-ust kir yuvish mashinasi va suv isitkich, dush */
+  ball(V(BATHFX.sink,.82,.3),.2,MAT.white).scale.set(1.2,.45,1);
+  tube(V(BATHFX.sink,.1,.2),V(BATHFX.sink,.74,.2),.05,MAT.white);
+  poly([V(BATHFX.sink,.9,.08),V(BATHFX.sink,1.05,.08),V(BATHFX.sink,1.08,.2)],.012,MAT.steel);
+  const wx=BATHFX.washer;
+  box(wx-.3,wx+.3,0,.85,.03,.6,MAT.white);
+  const dr=new THREE.Mesh(new THREE.CylinderGeometry(.16,.16,.02,24),MAT.dark);
+  dr.rotation.x=Math.PI/2; dr.position.set(wx,.46,.61); group.add(dr);
+  const wh=new THREE.Mesh(new THREE.CylinderGeometry(.23,.23,.8,24),MAT.white);
+  wh.position.set(wx,1.55,.26); wh.castShadow=true; group.add(wh);
+  wh.userData={kind:"txt",title:"Suv isitkich",text:"Kir yuvish mashinasi ustida, devorga mahkamlangan. Tagida xavfsizlik klapani bo'lsin, drenaji kanalizatsiyaga ulansin."};
+  pickables.push(wh);
+  poly([V(wx-.1,1.15,.26),V(wx-.1,.98,.26),V(wx-.1,.98,.05)],.01,MAT.cold);
+  poly([V(wx+.1,1.15,.26),V(wx+.1,.98,.26),V(wx+.1,.98,.05)],.01,MAT.hot);
+  const sx=BATHFX.shower;
+  box(sx-.45,sx+.45,0,.1,.03,.93,MAT.white);
+  box(sx-.09,sx+.09,.7,1.95,.0,.05,MAT.steel);
+  box(sx-.12,sx+.12,2.05,2.08,.02,.3,MAT.steel);
+}
+function buildSewer(){
+  const s=sewerPaths();
+  s.thin.forEach(q=>poly(q.map(P3),.03,MAT.sew));
+  s.thick.forEach(q=>poly(q.map(P3),.055,MAT.sew));
+  PITS.forEach(q=>{
+    const ring=new THREE.Mesh(new THREE.CylinderGeometry(q.r,q.r,PIT_DEPTH+.5,32,1,true),MAT.brick);
+    ring.position.set(q.x,.2-(PIT_DEPTH+.5)/2,q.z); group.add(ring);
+    const lid=new THREE.Mesh(new THREE.CylinderGeometry(q.r+.05,q.r+.05,.1,32),MAT.lid);
+    lid.position.set(q.x,.25,q.z); group.add(lid);
+    tube(V(q.x+.5,.2,q.z),V(q.x+.5,1.7,q.z),.055,MAT.sew);
+    ring.userData={kind:"txt",title:q.name,text:`Ø2 m, chuqurligi ${PIT_DEPTH} m. Devori teshikli g'isht, tagi shag'al, usti lyukli beton qopqoq, shamollatish quvuri Ø110.`};
+    pickables.push(ring);
+    labels.push({el:label(q.name),pos:V(q.x,.75,q.z),group:"sew"});
+  });
+}
+function buildHeating(c,lay,p){
+  const P=(x,z,y)=>V(x,y,z);
+  const rMain=byDn(lay.set[0]).id/2000+.012, rBr=byDn(lay.set[1]).id/2000+.008, rCon=.016;
+  flowPaths=[];
+  lay.paths.forEach(path=>{
+    const pts=path.pts.map(P3);
+    poly(pts,path.tier?rMain:rBr,path.k==="s"?MAT.hot:MAT.cold);
+    flowPaths.push({k:path.k,pts,len:path.len});
+  });
+  c.rads.forEach(rad=>{
+    const g=radGeom(rad), [px,pz]=g.p, [tx,tz]=g.t, [nx,nz]=g.n;
+    const m=new THREE.Group(); m.position.set(px,RAD_Y,pz);
+    if(tx===0) m.rotation.y=Math.PI/2;
+    const n=rad.sec, fin=new THREE.BoxGeometry(SEC_W*.86,RAD_H,SEC_D);
+    const body=new THREE.InstancedMesh(fin,MAT.rad,n);
+    const d=new THREE.Object3D();
+    for(let i=0;i<n;i++){
+      d.position.set((i-(n-1)/2)*SEC_W,RAD_H/2,0); d.updateMatrix(); body.setMatrixAt(i,d.matrix);
+    }
+    const col=new THREE.BoxGeometry(rad.w,.05,.07);
+    const top=new THREE.Mesh(col,MAT.rad), bot=new THREE.Mesh(col,MAT.rad);
+    top.position.y=RAD_H-.04; bot.position.y=.04;
+    m.add(body,top,bot);
+    body.castShadow=true; body.userData={kind:"rad",rad}; top.userData=bot.userData=body.userData;
+    group.add(m); pickables.push(body,top,bot);
+
+    const end=s=>[px+tx*s*(rad.w/2+.03),pz+tz*s*(rad.w/2+.03)];
+    const off=(q,o)=>[q[0]+nx*(o-.09),q[1]+nz*(o-.09)];
+    const a=end(-1), b=end(1), sb=off(a,OFF_S), rb=off(b,OFF_R);
+    const yT=RAD_Y+RAD_H-.04, yB=RAD_Y+.04;
+    poly([P(sb[0],sb[1],lay.YA),P(sb[0],sb[1],yT),P(a[0],a[1],yT)],rCon,MAT.hot);
+    poly([P(rb[0],rb[1],Y_R),P(rb[0],rb[1],yB),P(b[0],b[1],yB)],rCon,MAT.cold);
+    valve(P(sb[0],sb[1],yT+.14)); valve(P(rb[0],rb[1],yB+.0));
+    ball(P(px+tx*(rad.w/2+.012),pz+tz*(rad.w/2+.012),yT),.016,MAT.brass);
+    labels.push({el:label(`R${rad.no}`),pos:V(px+nx*.25,RAD_Y+RAD_H+.14,pz+nz*.25),group:"heat"});
+  });
+
+  /* Qozon */
+  const y0=-p.pit, xb=BX-BW/2, zb=BZ-BD/2, top=y0+BH;
+  const body=box(xb,xb+BW,y0+.02,top,zb,zb+BD,MAT.orange);
+  const det=lay.details;
+  body.userData={kind:"det",d:det[0]}; pickables.push(body);
+  [[.12,.42],[.48,.78],[.86,1.22]].forEach(q=>box(xb+BW,xb+BW+.03,y0+q[0],y0+q[1],zb+.1,zb+BD-.1,MAT.dark,false));
+  const fan=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,.1,20),MAT.white);
+  fan.rotation.z=Math.PI/2; fan.position.set(xb+BW+.08,y0+.27,BZ+.3); group.add(fan);
+  fan.userData={kind:"det",d:det[1]}; pickables.push(fan);
+  const ctl=box(AX0,AX0+.05,1.15,1.5,-1.05,-.75,MAT.white,false);
+  ctl.userData={kind:"det",d:det[2]}; pickables.push(ctl);
+  ball(P(BX,BZ+.25,top+.12),.05,MAT.white);
+
+  /* Kengayish baki, to'kish quvuri */
+  const tankY=p.h+.82, tz=2.2;
+  poly([P(BX,OFF_S,lay.YA),P(BX,tz,tankY)],rBr*.8,MAT.hot);
+  const tk=box(BX-.32,BX+.32,tankY,tankY+.42,tz-.22,tz+.22,MAT.tank);
+  tk.userData={kind:"det",d:det[5]}; pickables.push(tk);
+  const ox=BX+.07;
+  poly([P(ox,tz-.22,tankY+.3),P(ox,OFF_S,lay.YA+.12),P(ox,-1,lay.YA+.12),P(ox,-1,y0+.08)],.012,MAT.over);
+
+  /* Nasos va bypass */
+  const yT=-.02, yB=lay.yRet+.15, ym=(yT+yB)/2, xp=BX-.42, zg=-.8;
+  poly([P(BX,zg,yT),P(xp,zg,yT),P(xp,zg,yB),P(BX,zg,yB)],rBr*.8,MAT.cold);
+  const pump=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.16,18),MAT.cold);
+  pump.rotation.z=Math.PI/2; pump.position.set(xp,ym,zg); group.add(pump);
+  pump.userData={kind:"det",d:det[8]}; pickables.push(pump);
+  const motor=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.1,16),MAT.dark);
+  motor.rotation.z=Math.PI/2; motor.position.set(xp-.12,ym,zg); group.add(motor);
+  valve(P(xp,zg,yT-.08)); valve(P(xp,zg,yB+.08));
+  const cv=ball(P(BX,zg,ym),.05,MAT.brass); cv.userData={kind:"det",d:det[7]}; pickables.push(cv);
+  const fl=box(BX-.06,BX+.06,Y_R-.1,Y_R+.06,-.46,-.36,MAT.steel,false); fl.userData={kind:"det",d:det[10]}; pickables.push(fl);
+  poly([P(BX,zg,Y_R),P(BX+.3,zg,Y_R)],.012,MAT.over); valve(P(BX+.3,zg,Y_R));
+  poly([P(BX,BZ+BD/2+.1,lay.yRet),P(BX+.3,BZ+BD/2+.1,lay.yRet)],.012,MAT.cold); valve(P(BX+.3,BZ+BD/2+.1,lay.yRet));
+
+  /* Tutun quvuri */
+  const fy=y0+1.05, chimZ=AZ0-AT-.25;
+  tube(P(BX,zb,fy),P(BX,chimZ,fy),.08,MAT.steel);
+
+  det.forEach(d=>{ if(d.pos) labels.push({el:label(d.no,"det"),pos:V(...d.pos),near:true,group:"heat"}) });
+  labels.push({el:label(`Qozon ${c.boiler} kW`),pos:V(BX,top+.55,BZ),group:"heat"});
+}
+function label(html,cls=""){
+  const e=document.createElement("div"); e.className="lb "+cls; e.innerHTML=html;
+  $("labels").appendChild(e); return e;
+}
+function rebuild(){
+  const {c,lay,p}=state;
+  while(group.children.length){
+    const o=group.children.pop();
+    o.traverse(n=>{n.geometry&&n.geometry.dispose()});
+  }
+  pickables=[]; labels=[]; $("labels").innerHTML="";
+  const on=id=>$(id).checked;
+  MAT.ground.transparent=mode!=="full"; MAT.ground.opacity=mode==="ghost"?.3:mode==="cut"?.6:1;
+  MAT.ground.depthWrite=mode==="full"; MAT.ground.needsUpdate=true;
+  buildHouse(p);
+  if(on("l-fur")&&mode!=="full") buildFurniture(p);
+  if(on("l-sew")) buildSewer();
+  flowPaths=[];
+  if(on("l-heat")) buildHeating(c,lay,p);
+  dotsS.visible=dotsR.visible=on("l-heat");
+  c.rooms.forEach(x=>{
+    const r=x.r;
+    labels.push({el:label(`${r.name} · ${fmt(x.Q/1000,1)} kW`,"room"),pos:V((r.x0+r.x1)/2,.15,(r.z0+r.z1)/2+(r.id==="o"?.6:0))});
+  });
+  labels.push({el:label("Qozonxona","room"),pos:V(AX0+1,1.5,AZ0-.1)});
+}
+let dummy,tv;
+function placeDots(t){
+  let is=0, ir=0;
+  flowPaths.forEach(fp=>{
+    const n=Math.max(2,Math.floor(fp.len/.7));
+    for(let i=0;i<n;i++){
+      let d=((i/n+t*.3/fp.len)%1)*fp.len, j=1;
+      while(j<fp.pts.length){
+        const seg=fp.pts[j].distanceTo(fp.pts[j-1]);
+        if(d<=seg||j===fp.pts.length-1){tv.copy(fp.pts[j-1]).lerp(fp.pts[j],seg?d/seg:0);break}
+        d-=seg; j++;
+      }
+      dummy.position.copy(tv); dummy.updateMatrix();
+      if(fp.k==="s"&&is<260) dotsS.setMatrixAt(is++,dummy.matrix);
+      else if(fp.k==="r"&&ir<260) dotsR.setMatrixAt(ir++,dummy.matrix);
+    }
+  });
+  dotsS.count=is; dotsR.count=ir;
+  dotsS.instanceMatrix.needsUpdate=dotsR.instanceMatrix.needsUpdate=true;
+}
+let proj;
+function placeLabels(){
+  const w=$("stage").clientWidth, h=$("stage").clientHeight, hide=mode==="full";
+  const close=camera.position.distanceTo(V(BX,0,-1.5))<9;
+  labels.forEach(l=>{
+    proj.copy(l.pos).project(camera);
+    const vis=!hide&&proj.z<1&&(!l.near||close);
+    l.el.hidden=!vis;
+    if(vis) l.el.style.transform=`translate(-50%,-50%) translate(${(proj.x+1)/2*w}px,${(1-proj.y)/2*h}px)`;
+  });
+}
+function tick(ms){
+  try{
+    if(tween){
+      const k=Math.min(1,(ms-tween.t0)/(reduced?1:700)), e=k*k*(3-2*k);
+      camera.position.lerpVectors(tween.p0,tween.p1,e);
+      controls.target.lerpVectors(tween.t1,tween.t2,e);
+      if(k===1) tween=null;
+    }
+    controls.update();
+    if(!reduced||needsRender){placeDots(ms/1000);needsRender=false}
+    placeLabels();
+    renderer.render(scene,camera);
+  }catch(err){fail("3D chizishda xato: "+err.message); return}
+  requestAnimationFrame(tick);
+}
+function fail(msg){
+  const e=$("err");
+  e.textContent=msg+" Reja va hisoblar pastda to'liq ishlaydi.";
+  e.hidden=false;
+}
+function setMode(m){
+  mode=m;
+  [...$("modes").children].forEach(b=>b.setAttribute("aria-pressed",b.dataset.m===m));
+  rebuild(); needsRender=true;
+}
+function goView(v){
+  if(v==="boiler"&&mode==="full") setMode("cut");
+  const c=CAM[v];
+  tween={t0:performance.now(),p0:camera.position.clone(),p1:V(...c.pos),t1:controls.target.clone(),t2:V(...c.tgt)};
+}
+let ray,ptr;
+function pick(e){
+  const b=renderer.domElement.getBoundingClientRect();
+  ptr.set((e.clientX-b.left)/b.width*2-1,-(e.clientY-b.top)/b.height*2+1);
+  ray.setFromCamera(ptr,camera);
+  const hit=ray.intersectObjects(pickables,false)[0];
+  showCard(hit?hit.object.userData:null);
+}
+function showCard(u){
+  const c=state.c, card=$("card");
+  if(u&&u.kind==="rad"){
+    const r=u.rad;
+    card.innerHTML=`<b>Radiator R${r.no}, ${r.room.name.toLowerCase()}</b>${r.sec} seksiya, eni ${fmt(r.w*100)} sm, ${fmt(r.power)} W. Nasos bilan suv sarfi ${fmt(c.flow(r.power))} l/soat.`;
+  }else if(u&&u.kind==="det"){
+    card.innerHTML=`<b>${u.d.no}. ${u.d.name}</b>${u.d.text}`;
+  }else if(u&&u.kind==="txt"){
+    card.innerHTML=`<b>${u.title}</b>${u.text}`;
+  }
+  card.hidden=!(u&&u.kind);
+}
+
+/* ---------- 2D reja ---------- */
+function drawPlan(c,lay){
+  const s=46, mx=78, zTop=-7.7;
+  const X=x=>mx+(x+T)*s, Y=z=>16+(z-zTop)*s;
+  const W=(XE+2*T)*s;
+  const R=(x0,z0,x1,z1,a)=>`<rect x="${X(x0)}" y="${Y(z0)}" width="${(x1-x0)*s}" height="${(z1-z0)*s}" ${a}/>`;
+  const t=(x,y,str,a="")=>`<text x="${x}" y="${y}" ${a}>${str}</text>`;
+  let o="";
+  const wf=`fill="var(--wall)"`;
+  /* devorlar */
+  [[-T,-T,XE+T,0],[-T,DEPTH,XE+T,DEPTH+T],[-T,0,0,DEPTH],[XE,0,XE+T,DEPTH],[X1,0,X2,DEPTH],[X3,0,X4,DEPTH],[X4,Z1,XE,Z2],
+   [AX0-AT,AZ0-AT,AX1+AT,AZ0],[AX0-AT,AZ0,AX0,AZ1],[AX1,AZ0,AX1+AT,AZ1]].forEach(q=>o+=R(...q,wf));
+  o+=R(BX-.25,AZ0-AT-.5,BX+.25,AZ0-AT,wf);
+  /* eshik va deraza teshiklari */
+  const dA=DOOR.c-DOOR.w/2, dB=DOOR.c+DOOR.w/2, bA=BATH.c-BATH.w/2, bB=BATH.c+BATH.w/2;
+  o+=R(X1-.01,dA,X2+.01,dB,`fill="var(--panel)"`)+R(X3-.01,dA,X4+.01,dB,`fill="var(--panel)"`)+R(bA,Z1-.01,bB,Z2+.01,`fill="var(--panel)"`);
+  o+=R(AX1-.75,AZ0-AT-.01,AX1-.05,AZ0+.01,`fill="var(--panel)"`);
+  const arc=(cx,cz,x1,z1,x2,z2,sw)=>`<path d="M${X(cx)} ${Y(cz)}L${X(x1)} ${Y(z1)}A${.9*s} ${.9*s} 0 0 ${sw} ${X(x2)} ${Y(z2)}Z" fill="none" stroke="var(--muted)" stroke-width="1"/>`;
+  o+=arc(X1,dB,X1-.9,dB,X1,dA,1)+arc(X4,dB,X4+.9,dB,X4,dA,0);
+  o+=`<path d="M${X(bA)} ${Y(Z2)}L${X(bA)} ${Y(Z2+.8)}A${.8*s} ${.8*s} 0 0 0 ${X(bB)} ${Y(Z2)}Z" fill="none" stroke="var(--muted)" stroke-width="1"/>`;
+  WINDOWS.forEach(cx=>{
+    o+=R(cx-.75,DEPTH,cx+.75,DEPTH+T,`fill="var(--panel)" stroke="var(--fg)" stroke-width="1"`);
+    o+=`<line x1="${X(cx-.75)}" x2="${X(cx+.75)}" y1="${Y(DEPTH+T/2)}" y2="${Y(DEPTH+T/2)}" stroke="var(--fg)"/>`;
+  });
+  const eA=ENTRY.c-ENTRY.w/2, eB=ENTRY.c+ENTRY.w/2;
+  o+=R(eA,DEPTH-.01,eB,DEPTH+T+.01,`fill="var(--panel)"`);
+  o+=`<path d="M${X(eA)} ${Y(DEPTH)}L${X(eA)} ${Y(DEPTH-ENTRY.w)}A${ENTRY.w*s} ${ENTRY.w*s} 0 0 1 ${X(eB)} ${Y(DEPTH)}Z" fill="none" stroke="var(--muted)" stroke-width="1"/>`;
+  o+=t(X(ENTRY.c),Y(DEPTH-ENTRY.w-.12),"Kirish eshigi",`text-anchor="middle" class="sm"`);
+  /* jihozlar */
+  const fx=`fill="none" stroke="var(--muted)" stroke-width="1"`;
+  o+=R(X2+.03,.02,X3-.03,.62,fx);
+  o+=R(BATHFX.sink-.25,.05,BATHFX.sink+.25,.5,fx)+R(BATHFX.washer-.3,.03,BATHFX.washer+.3,.6,fx)+R(BATHFX.shower-.45,.03,BATHFX.shower+.45,.93,fx);
+  /* xona nomlari */
+  c.rooms.forEach(x=>{
+    const r=x.r,cx=X((r.x0+r.x1)/2),cz=Y((r.z0+r.z1)/2)+(r.id==="h"?26:r.id==="o"?30:-14);
+    o+=t(cx,cz,r.name,`text-anchor="middle" class="rn"`)+t(cx,cz+16,`${fmt(x.A,1)} m²`,`text-anchor="middle" class="sm"`);
+  });
+  /* kanalizatsiya */
+  const sw=sewerPaths();
+  const line=(q,w)=>`<polyline points="${q.map(u=>X(u[0])+","+Y(u[1])).join(" ")}" fill="none" stroke="var(--sew)" stroke-width="${w}"/>`;
+  sw.thin.forEach(q=>o+=line(q,2)); sw.thick.forEach(q=>o+=line(q,3.5));
+  PITS.forEach((q,i)=>{
+    o+=`<circle cx="${X(q.x)}" cy="${Y(q.z)}" r="${q.r*s}" fill="var(--panel)" stroke="var(--sew)" stroke-width="3"/>`;
+    o+=t(X(q.x),Y(q.z)+4,i?"Hammom":"Oshxona",`text-anchor="middle" class="sm b"`);
+  });
+  /* quvurlar */
+  lay.paths.forEach(p=>{
+    o+=`<polyline points="${p.pts.map(q=>X(q[0])+","+Y(q[1])).join(" ")}" fill="none" stroke="var(--${p.k==="s"?"hot":"cold"})" stroke-width="1.8" ${p.k==="s"?'stroke-dasharray="6 4"':""}/>`;
+  });
+  /* radiatorlar */
+  c.rads.forEach(r=>{
+    const g=radGeom(r), v=g.t[0]!==0, hw=r.w/2, d=.07;
+    const [a,b]=g.p;
+    o+=`<rect x="${X(v?a-hw:a-d)}" y="${Y(v?b-d:b-hw)}" width="${(v?r.w:2*d)*s}" height="${(v?2*d:r.w)*s}" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.4"/>`;
+    o+=t(X(a+g.n[0]*.5),Y(b+g.n[1]*.42)+4,`R${r.no}`,`text-anchor="middle" class="sm b"`);
+  });
+  /* qozon va bak */
+  o+=R(BX-BW/2,BZ-BD/2,BX+BW/2,BZ+BD/2,`fill="var(--accent)"`);
+  o+=t(X(AX1-.05),Y(AZ0+.3),"zina",`text-anchor="end" class="sm"`);
+  o+=t(X(BX-.0),Y(AZ0-1.0),"Mo'ri",`text-anchor="middle" class="sm"`);
+  o+=R(BX-.32,1.98,BX+.32,2.42,`fill="none" stroke="var(--hot)" stroke-dasharray="4 3"`);
+  o+=t(X(BX),Y(2.72),"Bak (cherdak)",`text-anchor="middle" class="sm"`);
+  o+=t(X(AX0-AT-.15),Y(BZ+.05),`Qozon ${c.boiler} kW`,`text-anchor="end" class="sm b"`);
+  /* o'lcham chiziqlari */
+  const dimH=(a,b,y,l)=>`<line x1="${X(a)}" x2="${X(b)}" y1="${y}" y2="${y}" class="d"/><line x1="${X(a)}" x2="${X(a)}" y1="${y-5}" y2="${y+5}" class="d"/><line x1="${X(b)}" x2="${X(b)}" y1="${y-5}" y2="${y+5}" class="d"/>`+t((X(a)+X(b))/2,y-5,l,`text-anchor="middle" class="sm"`);
+  const dimV=(a,b,x,l)=>{const m=(Y(a)+Y(b))/2;return `<line y1="${Y(a)}" y2="${Y(b)}" x1="${x}" x2="${x}" class="d"/><line y1="${Y(a)}" y2="${Y(a)}" x1="${x-5}" x2="${x+5}" class="d"/><line y1="${Y(b)}" y2="${Y(b)}" x1="${x-5}" x2="${x+5}" class="d"/>`+t(x-6,m,l,`text-anchor="middle" class="sm" transform="rotate(-90 ${x-6} ${m})"`)};
+  const by=Y(DEPTH+T)+28;
+  o+=dimH(0,X1,by,"360")+dimH(X2,X3,by,"350")+dimH(X4,XE,by,"360")+dimH(-T,XE+T,by+26,"1230");
+  o+=dimV(0,DEPTH,mx-24,"750")+dimV(-T,DEPTH+T,mx-50,"830");
+  o+=dimV(AZ0,AZ1,X(AX0-AT)-14,"200");
+  const rx=mx+W+30;
+  o+=dimV(0,Z1,rx,"200")+dimV(Z2,DEPTH,rx,"510")+dimV(-T,PITS[0].z+PITS[0].r,rx,"500");
+  $("plan").innerHTML=`<svg viewBox="0 0 ${mx+W+52} ${by+40}" role="img" aria-label="Uy rejasi, radiatorlar, quvurlar va kanalizatsiya joylashuvi"><style>text{fill:var(--fg);font-family:var(--body)}.sm{font-size:12px;fill:var(--muted);font-family:var(--mono)}.b{fill:var(--fg);font-weight:500}.rn{font:600 18px var(--display)}.d{stroke:var(--muted);stroke-width:1}</style>${o}</svg>`;
+}
+
+/* ---------- Jadvallar ---------- */
+function renderTables(c,lay,p){
+  const secs=c.rooms.reduce((a,x)=>a+x.total,0);
+  const kpi=[["Issiqlik yo'qotish",fmt(c.Q/1000,1),"kW"],["Qattiq yoqilg'i qozoni",c.boiler,"kW"],
+    ["Cho'yan radiatorlar",c.rads.length,"dona"],["Seksiyalar",secs,"dona"],
+    ["Elektrsiz isitish",fmt(lay.share*100),"%"]];
+  $("kpis").innerHTML=kpi.map(k=>`<div class="kpi"><span>${k[0]}</span><b>${k[1]}<small>${k[2]}</small></b></div>`).join("");
+  $("tout-o").textContent=String(p.tout).replace("-","−")+" °C";
+  $("h-o").textContent=fmt(p.h,1)+" m";
+  $("pit-o").textContent=fmt(p.pit,1)+" m";
+  $("u").innerHTML=[["Devor U",c.Uw],["Deraza U",c.Uwin],["Shift U",c.Uc],["Pol U",c.Uf]]
+    .map(x=>`<dt>${x[0]}</dt><dd>${fmt(x[1],2)} W/m²K</dd>`).join("");
+
+  const area=c.rooms.reduce((a,x)=>a+x.A,0);
+  $("rooms").innerHTML=`<thead><tr><th>Xona</th><th>Maydon, m²</th><th>t, °C</th><th>Yo'qotish, W</th><th>W/m²</th><th>Radiator</th></tr></thead><tbody>`+
+    c.rooms.map(x=>`<tr><td>${x.r.name}</td><td>${fmt(x.A,1)}</td><td>${x.r.ti}</td><td>${fmt(x.Q)}</td><td>${fmt(x.Q/x.A)}</td><td>${x.count} × ${x.sec}</td></tr>`).join("")+
+    `</tbody><tfoot><tr><td>Jami</td><td>${fmt(area,1)}</td><td></td><td>${fmt(c.Q)}</td><td>${fmt(c.Q/area)}</td><td>${c.rads.length} dona</td></tr></tfoot>`;
+
+  const names={wall:"Tashqi devorlar",air:"Havo almashinuvi",ceil:"Shift",floor:"Pol",win:"Derazalar",door:"Kirish eshigi"};
+  $("split").innerHTML=`<thead><tr><th>Element</th><th>W</th><th>Ulushi</th></tr></thead><tbody>`+
+    Object.keys(c.totals).sort((a,b)=>c.totals[b]-c.totals[a]).map(k=>`<tr><td>${names[k]}</td><td>${fmt(c.totals[k])}</td><td>${fmt(c.totals[k]/c.Q*100)} %</td></tr>`).join("")+`</tbody>`;
+
+  const [m,b,t]=lay.set.map(byDn);
+  $("grav").innerHTML=`<tbody>`+[
+    ["Qozon markazidan radiator markazigacha",`${fmt(lay.H,2)} m`],
+    ["Hisobiy suv rejimi (o'zi aylanganda)","80 / 55 °C"],
+    ["Hosil bo'ladigan bosim",`${fmt(lay.head)} Pa`],
+    ["Quvurlardagi qarshilik, to'liq yuklamada",`${fmt(lay.lossPa)} Pa`],
+    ["Suv sarfi, to'liq yuklamada",`${fmt(lay.gG)} l/soat`],
+    ["Quvur diametri: asosiy / tarmoq / oxiri",`Ø${m.dn} / Ø${b.dn} / Ø${t.dn}`]
+  ].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join("")+`</tbody>`;
+  const ok=lay.lossPa<=lay.head*.9;
+  $("verdict").className="verdict "+(ok?"good":"fail");
+  $("verdict").textContent=ok?`Elektrsiz ham suv aylanadi: bosim qarshilikdan ${fmt(lay.head/lay.lossPa,1)} marta katta.`
+    :`Bosim yetmaydi, elektrsiz taxminan ${fmt(lay.share*100)} % issiqlik beradi. Qozonni chuqurroq qo'ying.`;
+
+  const sw=sewerPaths();
+  $("sew").innerHTML=`<thead><tr><th>Qism</th><th>Quvur</th><th>Qiyalik</th><th>Uzunligi</th></tr></thead><tbody>`+[
+    ["Oshxona rakovinasi, chuqurgacha","Ø50, keyin Ø110","3 %, keyin 2 %",`${fmt(sw.dK+3,1)} m`],
+    ["Hammom rakovina, kir mashinasi, dush","Ø50, keyin Ø110","3 %, keyin 2 %",`${fmt(sw.dB+6,1)} m`],
+    ["Chuqurlar","Ø2 m × 3 m, 2 dona","",`${fmt(Math.PI*PIT_DEPTH,1)} m³ dan`]
+  ].map(r=>`<tr>${r.map(x=>`<td>${x}</td>`).join("")}</tr>`).join("")+`</tbody>`;
+
+  const D=lay.details;
+  $("dets").innerHTML=`<thead><tr><th>№</th><th>Detal</th><th>Joyi</th><th>Vazifasi</th></tr></thead><tbody>`+
+    D.map(d=>`<tr><td>${d.no}</td><td>${d.name}</td><td>${d.where}</td><td>${d.text}</td></tr>`).join("")+`</tbody>`;
+
+  const Lmain=Math.ceil(lay.lens.main*1.1);
+  const Lrun=(lay.lens.left+lay.lens.right)*1.1;
+  const Lbr=Math.ceil(Lrun*.6), Ltail=Math.ceil(Lrun*.4);
+  const Lcon=Math.ceil(c.rads.reduce((a,r)=>a+p.h+1.2,0));
+  const n=c.rads.length;
+  const pv=(L,d)=>Math.PI/4*Math.pow(d.id/100,2)*L*10;
+  const vol=secs*SEC_L+pv(Lmain,m)+pv(Lbr,b)+pv(Ltail,t)+pv(Lcon,byDn(20))+40;
+  const tank=Math.ceil(vol*.06/10)*10;
+  const rows=[
+    ["Qattiq yoqilg'i qozoni, havo ventilyatori va qopqog'i bilan",`${c.boiler} kW`,"1 dona"],
+    ["Qozon boshqaruv bloki (nasos va ventilyator uchun)","220 V","1 dona"],
+    ["Cho'yan radiator MS-140-500",`${secs} seksiya`,`${n} dona`],
+    ["Radiator kirish sharli krani, to'la kesimli",'3/4"',`${n} dona`],
+    ["Radiator chiqish sharli krani, to'la kesimli",'3/4"',`${n} dona`],
+    ["Havo chiqarish krani va radiator tiqini to'plami",'1"',`${n} to'plam`],
+    ["Radiator kronshteyni","devorga",`${n*3} dona`],
+    ["Aylanma nasos, 25-60 sinf",`Ø${m.dn}`,"1 dona"],
+    ["Teskari klapan, past qarshilikli (bypass)",`Ø${m.dn}`,"1 dona"],
+    ["Nasos sharli kranlari",`Ø${b.dn}`,"2 dona"],
+    ["Loyqa filtr, to'la kesimli",`Ø${m.dn}`,"1 dona"],
+    ["Ochiq kengayish baki, izolyatsiyali",`${tank} l`,"1 dona"],
+    ["To'kish quvuri (bakdan qozonxonagacha)","Ø20",`${Math.ceil(p.h+p.pit+6)} m`],
+    ["To'ldirish va to'kish kranlari",'1/2"',"2 dona"],
+    ["Termometr va manometr","qozon chiqishi","1 to'plam"],
+    ["Po'lat quvur, asosiy",`Ø${m.dn} (${m.inch})`,`${Lmain} m`],
+    ["Po'lat quvur, tarmoq",`Ø${b.dn} (${b.inch})`,`${Lbr} m`],
+    ["Po'lat quvur, tarmoq oxiri",`Ø${t.dn} (${t.inch})`,`${Ltail} m`],
+    ["Po'lat quvur, radiator ulanishi",`Ø20 (3/4")`,`${Lcon} m`],
+    ["Cherdak quvuri izolyatsiyasi, mineral paxta","20 mm",`${Math.ceil((lay.lens.left+lay.lens.right)*.6+6)} m`],
+    ["Tutun quvuri, zanglamaydigan po'lat","qozon chiqishiga mos",`${fmt(AZ1*-1+1.2,0)} m`],
+    ["G'isht mo'ri, ichki kanali bilan",`H ${fmt(p.h+2.8,1)} m`,"1 dona"],
+    ["PVX kanalizatsiya quvuri, ichki","Ø50",`${Math.ceil(sw.L50)} m`],
+    ["PVX kanalizatsiya quvuri, tashqi","Ø110",`${Math.ceil(sw.dK+sw.dB+4)} m`],
+    ["Sifon: rakovina, dush, kir mashinasi","Ø50","4 dona"],
+    ["Teftish tiqini, uydan chiqishda","Ø110","2 dona"]
+  ];
+  $("bom").innerHTML=`<thead><tr><th>Nomi</th><th>O'lchami</th><th>Miqdori</th></tr></thead><tbody>`+
+    rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join("")+
+    `</tbody><tfoot><tr><td colspan="3" style="font-weight:400;color:var(--muted);text-align:left;padding-left:0">Tizim hajmi taxminan ${fmt(vol)} l. Nasos bilan suv sarfi ${fmt(c.flow(c.Q))} l/soat. Quvur yotqizishda issiq liniya bakdan uzoqlashgan sari 0,5 % pastlaydi, qaytish liniyasi qozonga qarab 0,5 % pastlaydi.</td></tr></tfoot>`;
+  renderCost({rads:n,pipe:Lmain+Lbr+Ltail+Lcon,ins:Math.ceil((lay.lens.left+lay.lens.right)*.6+6),L50:Math.ceil(sw.L50),L110:Math.ceil(sw.dK+sw.dB+4)});
+}
+
+/* ---------- Usta xizmati narxi ---------- */
+const COST=[
+  {g:"i",k:"boiler",n:"Qozonni o'rnatish va ulash",u:"dona",q:()=>1,r:3000000,src:"e'lon, dan"},
+  {g:"i",k:"pump",n:"Nasos va bypass tugunini yig'ish",u:"dona",q:()=>1,r:800000},
+  {g:"i",k:"tank",n:"Ochiq bak va to'kish quvurini o'rnatish",u:"dona",q:()=>1,r:600000},
+  {g:"i",k:"rad",n:"Radiatorni yig'ish, osish va ulash",u:"dona",q:v=>v.rads,r:200000},
+  {g:"i",k:"pipe",n:"Po'lat quvurni payvandlab yotqizish",u:"m",q:v=>v.pipe,r:40000},
+  {g:"i",k:"ins",n:"Cherdak quvurini izolyatsiyalash",u:"m",q:v=>v.ins,r:8000},
+  {g:"i",k:"flue",n:"Tutun quvurini ulash",u:"dona",q:()=>1,r:500000},
+  {g:"i",k:"chim",n:"G'isht mo'rini terish",u:"dona",q:()=>1,r:2000000},
+  {g:"i",k:"start",n:"Bosim sinovi, sozlash va ishga tushirish",u:"dona",q:()=>1,r:1000000,src:"e'lon, dan"},
+  {g:"k",k:"s50",n:"Ichki PVX Ø50 quvur yotqizish",u:"m",q:v=>v.L50,r:30000},
+  {g:"k",k:"s110",n:"Tashqi Ø110 quvur va transheya",u:"m",q:v=>v.L110,r:60000},
+  {g:"k",k:"fix",n:"Rakovina, dush, kir mashinasini ulash",u:"dona",q:()=>4,r:150000},
+  {g:"y",k:"check",n:"Mavsum oldidan tizimni ko'rikdan o'tkazish",u:"marta",q:()=>1,r:500000},
+  {g:"y",k:"clean",n:"Qozon va mo'rini tozalash",u:"marta",q:()=>2,r:300000}
+];
+const GROUPS={i:"Isitish tizimini o'rnatish",k:"Kanalizatsiya",y:"Har yillik xizmat"};
+const rates={};
+try{Object.assign(rates,JSON.parse(localStorage.getItem("uy-rates")||"{}"))}catch(e){}
+let costVol=null;
+function costTotals(){
+  const res=Math.max(0,+$("cost-res").value||0)/100, t={i:0,k:0,y:0};
+  COST.forEach(x=>{
+    const s=x.q(costVol)*(rates[x.k]??x.r); t[x.g]+=s;
+    $("sum-"+x.k).textContent=fmt(s);
+  });
+  const work=t.i+t.k, all=work*(1+res), mln=v=>fmt(v/1e6,1);
+  $("cost-kpis").innerHTML=[["Isitish ishlari",mln(t.i),"mln so'm"],["Kanalizatsiya ishlari",mln(t.k),"mln so'm"],
+    ["Kutilmagan xarajat",mln(work*res),"mln so'm"],["Jami o'rnatish",mln(all),"mln so'm"],["Har yillik xizmat",mln(t.y),"mln so'm"]]
+    .map(k=>`<div class="kpi"><span>${k[0]}</span><b>${k[1]}<small>${k[2]}</small></b></div>`).join("");
+  return {...t,all};
+}
+function renderCost(v){
+  costVol=v;
+  let g="", h=`<thead><tr><th>Ish</th><th>Hajmi</th><th>Narxi, so'm</th><th>Summa, so'm</th></tr></thead><tbody>`;
+  COST.forEach(x=>{
+    if(x.g!==g){g=x.g; h+=`<tr><td class="grp" colspan="4">${GROUPS[g]}</td></tr>`}
+    h+=`<tr><td>${x.n}${x.src?` <span class="src">(${x.src})</span>`:""}</td><td>${x.q(v)} ${x.u}</td>`+
+       `<td><input type="number" id="rate-${x.k}" data-k="${x.k}" min="0" step="10000" value="${rates[x.k]??x.r}" aria-label="${x.n} narxi"></td>`+
+       `<td id="sum-${x.k}"></td></tr>`;
+  });
+  $("cost").innerHTML=h+`</tbody>`;
+  costTotals();
+}
+$("cost").addEventListener("input",e=>{
+  const k=e.target.dataset.k; if(!k) return;
+  rates[k]=Math.max(0,+e.target.value||0);
+  try{localStorage.setItem("uy-rates",JSON.stringify(rates))}catch(err){}
+  costTotals();
+});
+$("cost-res").addEventListener("input",costTotals);
+
+function update(){
+  const p=readParams(), c=compute(p), lay=layoutPipes(c,p);
+  lay.details=details(c,lay,p);
+  state={p,c,lay};
+  if(renderer){rebuild(); needsRender=true}
+  drawPlan(c,lay);
+  renderTables(c,lay,p);
+  showCard(null);
+}
+window.__calc=()=>state;
+
+["tout","h","pit","mat","ins","reg"].forEach(id=>$(id).addEventListener("input",update));
+["l-heat","l-sew","l-fur"].forEach(id=>$(id).addEventListener("change",()=>{if(renderer){rebuild();needsRender=true}}));
+$("modes").addEventListener("click",e=>{if(e.target.dataset.m) setMode(e.target.dataset.m)});
+$("views").addEventListener("click",e=>{if(e.target.dataset.v) goView(e.target.dataset.v)});
+
+/* 3D kutubxonasi: avval sahifa bilan birga turgan nusxa, keyin zaxira CDNlar */
+const LIBS=[
+  ["../vendor/three.min.js","../vendor/OrbitControls.js"],
+  ["https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js","https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"],
+  ["https://unpkg.com/three@0.128.0/build/three.min.js","https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"]
+];
+const loadScript=src=>new Promise((ok,no)=>{
+  const s=document.createElement("script"), t=setTimeout(()=>no(new Error("vaqt tugadi")),10000);
+  s.src=src;
+  s.onload=()=>{clearTimeout(t);ok()};
+  s.onerror=()=>{clearTimeout(t);no(new Error("yuklanmadi"))};
+  document.head.appendChild(s);
+});
+async function boot3D(){
+  for(const [a,b] of LIBS){
+    try{
+      if(!window.THREE) await loadScript(a);
+      if(!THREE.OrbitControls) await loadScript(b);
+      break;
+    }catch(err){console.warn(a,err.message)}
+  }
+  if(!(window.THREE&&THREE.OrbitControls)){
+    fail("3D kutubxonasi yuklanmadi. Internet aloqasini tekshirib, sahifani yangilang.");
+    return;
+  }
+  try{initGL(); update()}
+  catch(err){
+    console.error(err);
+    renderer=null;
+    fail(/WebGL/i.test(err.message)
+      ?"Brauzeringizda WebGL o'chirilgan, 3D ko'rinish ishga tushmadi. Brauzer sozlamalarida apparat tezlatishni yoqing."
+      :"3D ishga tushmadi: "+err.message);
+  }
+}
+update();
+boot3D();
+</script>
+
+</body>
+</html>
