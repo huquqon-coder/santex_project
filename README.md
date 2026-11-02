@@ -5,7 +5,7 @@ Bir qavatli uy rejasini chizib, isitish, elektr va santexnika tizimlarini loyiha
 ## Imkoniyatlar
 
 - **Reja:** xona chizish, eshik va deraza qo'yish, o'lchamlarni tahrirlash.
-- **Isitish:** issiqlik yo'qotish, radiator tanlash va joylash, qozon quvvati, quvur yo'li, elektrsiz aylanish tekshiruvi.
+- **Isitish:** issiqlik yo'qotish, radiator tanlash va joylash, qozon quvvati, quvur yo'li. Suv aylanishi: nasos, o'zi aylanadigan yoki gibrid. Tizim: ochiq yoki yopiq.
 - **Elektr:** guruhlarga bo'lish, avtomat va kabel tanlash, taqsimlash korobkasi bilan yoki korobkasiz montaj.
 - **Santexnika:** sovuq va issiq suv, kanalizatsiya diametri va uzunligi.
 - **3D:** uy va tizimlarning aylantiriladigan modeli.

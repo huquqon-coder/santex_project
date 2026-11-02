@@ -59,7 +59,9 @@ export function emptyProject() {
     wallT: 40,
     ins: 0,
     regime: "80/60",
-    gravity: false,
+    circ: "pump",     // gravity: o'zi aylanadi, pump: nasos bilan, hybrid: ikkalasi
+    loop: "closed",   // open: ochiq bak, closed: yopiq membranali bak
+    fuel: "gas",      // gas yoki solid
     pit: 100,
     elecMode: "box",
     rooms: [],
@@ -69,11 +71,19 @@ export function emptyProject() {
   };
 }
 
+// Eski fayllardagi gravity belgisi yangi sozlamalarga o'tkaziladi
+export function normalize(raw) {
+  const p = { ...emptyProject(), ...raw };
+  if (raw.circ === undefined && raw.gravity) { p.circ = "hybrid"; p.loop = "open"; p.fuel = "solid"; }
+  delete p.gravity;
+  return p;
+}
+
 // Namuna: oldingi loyihadagi uy
 export function sampleProject() {
   const p = emptyProject();
   p.name = "Namuna uy, 12,3 × 8,3 m";
-  p.gravity = true;
+  p.circ = "hybrid"; p.loop = "open"; p.fuel = "solid";
   const m = room("guest", 0, 0, 360, 750);
   const o = room("kitchen", 400, 0, 350, 750);
   const h = room("bath", 790, 0, 360, 200);

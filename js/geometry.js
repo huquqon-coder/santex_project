@@ -4,6 +4,17 @@ import { ROOM_TYPES } from "./model.js";
 export const inRoom = (r, x, y) => x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.d;
 export const roomAt = (p, x, y) => p.rooms.find((r) => inRoom(r, x, y)) || null;
 
+// Jihozga eng yaqin devor: 3D da jihoz shu devorga orqa o'girib turadi
+export function nearestWall(p, x, y) {
+  const r = roomAt(p, x, y);
+  if (!r) return { x, y, ix: 0, iz: 1 };
+  const opts = [
+    { d: y - r.y, x, y: r.y, ix: 0, iz: 1 }, { d: r.y + r.d - y, x, y: r.y + r.d, ix: 0, iz: -1 },
+    { d: x - r.x, x: r.x, y, ix: 1, iz: 0 }, { d: r.x + r.w - x, x: r.x + r.w, y, ix: -1, iz: 0 },
+  ];
+  return opts.sort((a, b) => a.d - b.d)[0];
+}
+
 export function overlaps(p) {
   const out = [];
   p.rooms.forEach((a, i) => p.rooms.slice(i + 1).forEach((b) => {

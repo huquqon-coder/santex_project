@@ -8,6 +8,49 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 const ONE_ONLY = new Set(["boiler", "panel", "waterin", "sewerout", "heater"]);
 const TAB_GROUP = { heat: "heat", elec: "elec", plumb: "plumb" };
 
+// Rejadagi shartli belgilar
+function symbol(kind, k) {
+  const w = k.w / 2, d = k.d / 2, c = k.color;
+  switch (kind) {
+    case "sink": return `<ellipse cx="0" cy="3" rx="${w - 6}" ry="${d - 6}"/><circle cx="0" cy="3" r="3"/>`;
+    case "toilet": return `<rect x="${-w}" y="${-d}" width="${k.w}" height="16"/><ellipse cx="0" cy="10" rx="${w - 3}" ry="${d - 14}"/>`;
+    case "bathtub": return `<rect x="${-w + 7}" y="${-d + 7}" width="${k.w - 14}" height="${k.d - 14}" rx="22"/><circle cx="${w - 24}" cy="0" r="4"/>`;
+    case "shower": return `<path d="M${-w} ${-d}L${w} ${d}M${w} ${-d}L${-w} ${d}"/><circle r="6"/>`;
+    case "washer": return `<circle r="${w - 9}"/><circle r="${w - 17}"/>`;
+    case "heater": return `<circle r="${w - 8}"/><path d="M-9 0H9M0 -9V9"/>`;
+    case "boiler": return `<rect x="${-w + 6}" y="${-d + 6}" width="${k.w - 12}" height="${k.d - 12}" style="fill:${c}"/><path d="M${-w + 6} ${-d + 6}L${w - 6} ${d - 6}M${w - 6} ${-d + 6}L${-w + 6} ${d - 6}"/>`;
+    case "panel": return `<rect x="${-w}" y="${-d}" width="${k.w}" height="${k.d}" style="fill:${c}"/>`;
+    case "jbox": return `<rect x="${-w + 2}" y="${-d + 2}" width="${k.w - 4}" height="${k.d - 4}" style="fill:${c}"/><path d="M${-w + 2} ${-d + 2}L${w - 2} ${d - 2}M${w - 2} ${-d + 2}L${-w + 2} ${d - 2}"/>`;
+    case "light": return `<circle r="${w - 3}"/><path d="M-9 -9L9 9M9 -9L-9 9"/>`;
+    case "switch": return `<circle r="5" style="fill:${c}"/><path d="M0 0L9 -9"/>`;
+    case "socket": return `<path d="M-8 3A8 8 0 0 1 8 3Z" style="fill:${c}"/><path d="M0 -5V-11"/>`;
+    case "power": return `<path d="M-10 4A10 10 0 0 1 10 4Z" style="fill:${c}"/><path d="M-4 -6V-12M4 -6V-12"/>`;
+    case "waterin": return `<circle r="${w}" style="fill:${c}"/>`;
+    case "sewerout": return `<circle r="${w}" style="fill:${c}"/><circle r="${w - 6}"/>`;
+    default: return "";
+  }
+}
+function openSymbol(p, o, z) {
+  const r = p.rooms.find((x) => x.id === o.room), L = o.w;
+  if (o.kind === "window") {
+    return z.axis === "h"
+      ? `<path class="sym" d="M${z.x} ${z.y + z.d / 2}h${z.w}"/>`
+      : `<path class="sym" d="M${z.x + z.w / 2} ${z.y}v${z.d}"/>`;
+  }
+  const s = sideOf(o);
+  const hx = z.axis === "h" ? z.x : s.x(r, p), hy = z.axis === "h" ? s.y(r, p) : z.y;
+  if (z.axis === "h") {
+    const dir = o.side === "n" ? 1 : -1, e = hy + dir * L, sw = o.side === "n" ? 0 : 1;
+    return `<path class="sym" d="M${hx} ${hy}V${e}A${L} ${L} 0 0 ${sw} ${hx + L} ${hy}"/>`;
+  }
+  const dir = o.side === "w" ? 1 : -1, e = hx + dir * L, sw = o.side === "w" ? 1 : 0;
+  return `<path class="sym" d="M${hx} ${hy}H${e}A${L} ${L} 0 0 ${sw} ${hx} ${hy + L}"/>`;
+}
+const sideOf = (o) => ({
+  x: (r) => (o.side === "w" ? r.x : r.x + r.w),
+  y: (r) => (o.side === "n" ? r.y : r.y + r.d),
+});
+
 export class Editor {
   constructor(svg, ctx) {
     this.svg = svg; this.ctx = ctx;
@@ -194,6 +237,7 @@ export class Editor {
       const z = openingRect(p, q); if (!z) continue;
       const s = sel?.type === "open" && sel.id === q.id;
       o.push(`<rect ${tab === "plan" ? `data-t="open" data-id="${q.id}"` : ""} class="op ${q.kind} ${s ? "s" : ""}" x="${z.x}" y="${z.y}" width="${z.w}" height="${z.d}"/>`);
+      o.push(openSymbol(p, q, z));
     }
     if (tab === "heat" && res) this.heat(o, res.heat);
     if (tab === "elec" && res) this.elec(o, res.elec);
@@ -205,9 +249,10 @@ export class Editor {
       const s = sel?.type === "item" && sel.id === i.id;
       const attr = on ? `data-t="item" data-id="${i.id}"` : "";
       const cls = `it ${on ? "" : "dim"} ${s ? "s" : ""}`;
-      o.push(k.round
-        ? `<circle ${attr} class="${cls}" style="fill:${k.color}" cx="${i.x}" cy="${i.y}" r="${k.w / 2}"><title>${k.name}</title></circle>`
-        : `<rect ${attr} class="${cls}" style="fill:${k.color}" x="${i.x - k.w / 2}" y="${i.y - k.d / 2}" width="${k.w}" height="${k.d}"><title>${k.name}</title></rect>`);
+      const hit = k.round ? 2 + k.w / 2 : 0;
+      o.push(`<g class="${cls}" ${attr} transform="translate(${i.x} ${i.y})"><title>${k.name}</title>` +
+        (hit ? `<circle class="bg" r="${hit}"/>` : `<rect class="bg" x="${-k.w / 2}" y="${-k.d / 2}" width="${k.w}" height="${k.d}"/>`) +
+        symbol(i.kind, k) + `</g>`);
     }
     if (sel?.type === "room" && tab === "plan") {
       const r = p.rooms.find((x) => x.id === sel.id);

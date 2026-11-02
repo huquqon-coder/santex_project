@@ -1,7 +1,7 @@
-import { ITEM_KINDS, ROOM_TYPES, WALL_MATERIALS, emptyProject, sampleProject } from "./model.js";
+import { ITEM_KINDS, ROOM_TYPES, WALL_MATERIALS, emptyProject, normalize, sampleProject } from "./model.js";
 import { Editor } from "./editor.js";
 import { overlaps } from "./geometry.js";
-import { computeHeating, heatingBom } from "./heating.js";
+import { computeHeating, heatingBom, schemeParts } from "./heating.js";
 import { computeElectric, electricBom } from "./electric.js";
 import { computePlumbing, plumbingBom } from "./plumbing.js";
 import { renderReport } from "./report.js";
@@ -30,7 +30,7 @@ const ctx = {
 function load() {
   try {
     const s = localStorage.getItem(KEY);
-    if (s) return { ...emptyProject(), ...JSON.parse(s) };
+    if (s) return normalize(JSON.parse(s));
   } catch (e) { /* saqlangan ma'lumot o'qilmasa namunadan boshlaymiz */ }
   return sampleProject();
 }
@@ -116,12 +116,16 @@ function resultHtml() {
   }
   if (tab === "heat") {
     const h = res.heat, g = h.gravity;
-    return `<h2>Isitish</h2>` + field("pReg", "Suv rejimi", sel("pReg", [["80/60", "80 / 60 °C"], ["75/60", "75 / 60 °C"], ["70/55", "70 / 55 °C"]], p.regime)) +
-      `<label class="chk"><input type="checkbox" id="pGrav" ${p.gravity ? "checked" : ""}> Elektrsiz o'zi aylansin</label>` +
-      (p.gravity ? field("pPit", "Qozon chuquri, sm", numI("pPit", p.pit, 0, 250)) : "") +
+    return `<h2>Isitish</h2>` +
+      field("pCirc", "Suv aylanishi", sel("pCirc", [["hybrid", "Gibrid: nasos, tok o'chsa o'zi"], ["pump", "Faqat nasos bilan"], ["gravity", "Faqat o'zi aylanadi"]], p.circ)) +
+      field("pLoop", "Tizim turi", sel("pLoop", [["open", "Ochiq (bak cherdakda)"], ["closed", "Yopiq (membranali bak)"]], p.loop)) +
+      field("pFuel", "Qozon", sel("pFuel", [["solid", "Qattiq yoqilg'i"], ["gas", "Gaz"]], p.fuel)) +
+      field("pReg", "Suv rejimi", sel("pReg", [["80/60", "80 / 60 °C"], ["75/60", "75 / 60 °C"], ["70/55", "70 / 55 °C"]], p.regime)) +
+      (p.circ !== "pump" ? field("pPit", "Qozon chuquri, sm", numI("pPit", p.pit, 0, 250)) : "") +
       `<dl class="u"><dt>Issiqlik yo'qotish</dt><dd>${fmt(h.Q / 1000, 1)} kW</dd><dt>Qozon</dt><dd>${h.boilerKw} kW</dd><dt>Radiator</dt><dd>${h.rads.length} dona, ${h.secs} seks.</dd><dt>Quvur</dt><dd>${fmt(h.pipeTotal || 0)} m</dd>` +
       (g ? `<dt>Bosim / qarshilik</dt><dd>${fmt(g.head)} / ${fmt(g.loss)} Pa</dd>` : "") + `</dl>` +
       (g ? `<p class="${g.ok ? "good" : "bad"}">${g.ok ? "Elektrsiz suv aylanadi." : "Elektrsiz aylanish yetmaydi."}</p>` : "") +
+      `<h3>Tizim tarkibi</h3><ul class="comp">${schemeParts(p, h).map((x) => `<li>${x}</li>`).join("")}</ul>` +
       `<table class="mini"><tr><th>Xona</th><th>W</th><th>Radiator</th></tr>${h.rooms.map((x) => `<tr><td>${x.r.name}</td><td>${fmt(x.Q)}</td><td>${x.units} × ${x.sec}</td></tr>`).join("")}</table>` + warningsHtml(h.warnings);
   }
   if (tab === "elec") {
@@ -181,7 +185,8 @@ $("side").addEventListener("change", (e) => {
     oW: () => (o.w = n), oH: () => (o.h = n), oS: () => (o.sill = n),
     pName: () => (p.name = v), pH: () => (p.h = n), pT: () => (p.wallT = n), pMat: () => (p.wallMaterial = v),
     pIns: () => (p.ins = n), pOut: () => (p.tout = n), pReg: () => (p.regime = v),
-    pGrav: () => (p.gravity = e.target.checked), pPit: () => (p.pit = n), pElec: () => (p.elecMode = v),
+    pCirc: () => (p.circ = v), pLoop: () => (p.loop = v), pFuel: () => (p.fuel = v),
+    pPit: () => (p.pit = n), pElec: () => (p.elecMode = v),
   }[id];
   if (!set) return ctx.discardCommit();
   set(); ctx.changed();
@@ -221,7 +226,7 @@ $("export").onclick = () => {
 $("import").onclick = () => $("file").click();
 $("file").onchange = async (e) => {
   const f = e.target.files[0]; if (!f) return;
-  try { replace({ ...emptyProject(), ...JSON.parse(await f.text()) }); }
+  try { replace(normalize(JSON.parse(await f.text()))); }
   catch (err) { alert("Fayl o'qilmadi: JSON loyiha fayli kerak."); }
   e.target.value = "";
 };

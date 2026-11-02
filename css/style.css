@@ -59,6 +59,7 @@ input:not([type=checkbox]), select { font: 14px var(--body); padding: 5px 7px; b
 .u dt { color: var(--muted); } .u dd { margin: 0; text-align: right; font-family: var(--mono); font-size: 12.5px; }
 .good { color: var(--good); font-weight: 600; margin: 0; } .bad { color: var(--bad); font-weight: 600; margin: 0; }
 .warn { margin: 0; padding-left: 16px; color: var(--bad); font-size: 13px; }
+.comp { margin: 0; padding-left: 16px; font-size: 13px; display: grid; gap: 2px; }
 .hint { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
 .mini, .rep { border-collapse: collapse; width: 100%; font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .mini th, .mini td { padding: 3px 4px; border-bottom: 1px solid var(--line); text-align: right; }
@@ -87,9 +88,13 @@ input:not([type=checkbox]), select { font: 14px var(--body); padding: 5px 7px; b
 #plan .op.window { fill: #a9d6ea; }
 #plan .op.door { fill: var(--room); }
 #plan .op.entry { fill: var(--accent); }
-#plan .op.s, #plan .it.s { stroke: var(--accent); stroke-width: 5; }
-#plan .it { stroke: var(--panel); stroke-width: 2; cursor: move; }
-#plan .it.dim { opacity: .55; cursor: default; }
+#plan .op.s { stroke: var(--accent); stroke-width: 5; }
+#plan .it { cursor: move; }
+#plan .it .bg { fill: var(--panel); stroke: var(--fg); stroke-width: 2; }
+#plan .it :not(.bg):not(title) { fill: none; stroke: var(--fg); stroke-width: 2; }
+#plan .it.dim { opacity: .5; cursor: default; }
+#plan .it.s .bg { stroke: var(--accent); stroke-width: 5; }
+#plan .sym { fill: none; stroke: var(--fg); stroke-width: 1.5; pointer-events: none; }
 #plan .hd { fill: var(--accent); stroke: var(--panel); stroke-width: 2; }
 #plan .hd.n, #plan .hd.s { cursor: ns-resize; }
 #plan .hd.e, #plan .hd.w { cursor: ew-resize; }
