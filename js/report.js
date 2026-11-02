@@ -1,7 +1,7 @@
 // Materiallar va ish narxi jadvali. Standart narxlar faqat ish uchun va taxminiy.
 export const LABOR = {
   l_boiler: 3000000, l_rad: 200000, l_pipe: 40000, l_start: 1000000,
-  l_point: 60000, l_cable: 10000, l_panel: 800000,
+  l_point: 60000, l_cable: 10000, l_panel: 800000, l_jbox: 50000,
   l_fix: 150000, l_wpipe: 30000,
 };
 const mln = (v) => (v / 1e6).toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 });

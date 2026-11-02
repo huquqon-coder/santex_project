@@ -29,7 +29,7 @@ export class View3D {
       wall: std(0xc9c2b6), floor: std(0xb89468), cold: std(0x9a9c98), ground: std(0x79866f),
       glass: new THREE.MeshStandardMaterial({ color: 0x9fd0e8, transparent: true, opacity: 0.4 }),
       door: std(0x8a5f3b), rad: std(0xd9dcdd), hot: std(0xd8392c), blue: std(0x2574cc),
-      sewer: std(0x8b9a3e), cable: std(0xe2b52c), roof: std(0x7d4f3b, { side: THREE.DoubleSide }),
+      sewer: std(0x8b9a3e), cable: std(0xe2b52c), jbox: std(0x7a4fa3), roof: std(0x7d4f3b, { side: THREE.DoubleSide }),
       ghost: new THREE.MeshStandardMaterial({ color: 0x8a9aa2, transparent: true, opacity: 0.14, depthWrite: false }),
     };
     this.group = new THREE.Group(); this.scene.add(this.group);
@@ -108,7 +108,7 @@ export class View3D {
     }
     for (const i of p.items) {
       const k = ITEM_KINDS[i.kind];
-      if (!k) continue;
+      if (!k || i.kind === "jbox") continue;
       if (k.group === "heat" && !opt.heat) continue;
       if (k.group === "elec" && !opt.elec) continue;
       if (k.group === "plumb" && !opt.plumb) continue;
@@ -126,7 +126,10 @@ export class View3D {
         this.box(m(r.x) - w / 2, 0.13, m(r.y) - d / 2, w, 0.58, d, this.mat.rad);
       }
     }
-    if (opt.elec) for (const s of res.elec.segs) this.run(s.pts, wallH - 0.05, 0.008, this.mat.cable);
+    if (opt.elec) {
+      for (const s of res.elec.segs) this.run(s.pts, wallH - 0.05, 0.008, this.mat.cable);
+      for (const b of res.elec.boxes) this.box(m(b.x) - 0.05, wallH - 0.1, m(b.y) - 0.05, 0.1, 0.06, 0.1, this.mat.jbox);
+    }
     if (opt.plumb) {
       for (const s of res.plumb.cold) this.run(s.pts, 0.3, 0.012, this.mat.blue, -7);
       for (const s of res.plumb.hot) this.run(s.pts, 0.3, 0.012, this.mat.hot, 7);

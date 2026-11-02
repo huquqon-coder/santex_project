@@ -4,6 +4,14 @@ import { ROOM_TYPES } from "./model.js";
 export const inRoom = (r, x, y) => x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.d;
 export const roomAt = (p, x, y) => p.rooms.find((r) => inRoom(r, x, y)) || null;
 
+export function overlaps(p) {
+  const out = [];
+  p.rooms.forEach((a, i) => p.rooms.slice(i + 1).forEach((b) => {
+    if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.d && b.y < a.y + a.d) out.push([a, b]);
+  }));
+  return out;
+}
+
 export function bounds(p) {
   const t = p.wallT;
   if (!p.rooms.length) return { x0: 0, y0: 0, x1: 1000, y1: 800 };

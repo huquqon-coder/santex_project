@@ -1,6 +1,6 @@
 // 2D reja muharriri (SVG). Tahrirlash xona, ochilma va jihozlar ustida ishlaydi.
 import { ITEM_KINDS, ROOM_TYPES, item, opening, room } from "./model.js";
-import { bounds, nearestSide, openingRect } from "./geometry.js";
+import { bounds, nearestSide, openingRect, roomAt } from "./geometry.js";
 
 const SNAP = 10;
 const snap = (v) => Math.round(v / SNAP) * SNAP;
@@ -45,7 +45,11 @@ export class Editor {
   down(e) {
     const c = this.ctx, q = this.pt(e), tool = c.tool;
     this.svg.setPointerCapture(e.pointerId);
-    if (tool === "room") { this.drag = { type: "new", x0: snap(q.x), y0: snap(q.y) }; return; }
+    const onHandle = e.target.closest('[data-t="handle"]');
+    if (tool === "room" && !onHandle && !roomAt(c.p, q.x, q.y)) {
+      this.drag = { type: "new", x0: this.edge(q.x, "x"), y0: this.edge(q.y, "y") };
+      return;
+    }
     if (tool === "door" || tool === "window" || tool === "entry") {
       const s = nearestSide(c.p, q.x, q.y);
       if (s) {
@@ -55,7 +59,7 @@ export class Editor {
       }
       return;
     }
-    if (ITEM_KINDS[tool]) {
+    if (ITEM_KINDS[tool] && !onHandle) {
       c.commit();
       if (ONE_ONLY.has(tool)) c.p.items = c.p.items.filter((i) => i.kind !== tool);
       const it = item(tool, snap(q.x), snap(q.y));
@@ -95,8 +99,15 @@ export class Editor {
       this.vb.x = d.vx - (e.clientX - d.sx) * k; this.vb.y = d.vy - (e.clientY - d.sy) * k;
       this.applyVB(); return;
     }
-    if (d.type === "new") { this.preview = { x: Math.min(d.x0, snap(q.x)), y: Math.min(d.y0, snap(q.y)), w: Math.abs(snap(q.x) - d.x0), d: Math.abs(snap(q.y) - d.y0) }; }
-    if (d.type === "room") { d.r.x = snap(d.o.x + q.x - d.x0); d.r.y = snap(d.o.y + q.y - d.y0); }
+    if (d.type === "new") {
+      const x = this.edge(q.x, "x"), y = this.edge(q.y, "y");
+      this.preview = { x: Math.min(d.x0, x), y: Math.min(d.y0, y), w: Math.abs(x - d.x0), d: Math.abs(y - d.y0) };
+    }
+    if (d.type === "room") {
+      const nx = d.o.x + q.x - d.x0, ny = d.o.y + q.y - d.y0;
+      d.r.x = this.moveEdge(nx, d.r.w, "x", d.r);
+      d.r.y = this.moveEdge(ny, d.r.d, "y", d.r);
+    }
     if (d.type === "item") { d.i.x = snap(d.o.x + q.x - d.x0); d.i.y = snap(d.o.y + q.y - d.y0); }
     if (d.type === "open") {
       const r = this.ctx.p.rooms.find((x) => x.id === d.o.room);
@@ -105,11 +116,12 @@ export class Editor {
       d.o.off = Math.max(half, Math.min(len - half, snap(h ? q.x - r.x : q.y - r.y)));
     }
     if (d.type === "handle") {
-      const dx = snap(q.x - d.x0), dy = snap(q.y - d.y0), r = d.r, o = d.o, min = 100;
-      if (d.h === "e") r.w = Math.max(min, o.w + dx);
-      if (d.h === "s") r.d = Math.max(min, o.d + dy);
-      if (d.h === "w") { const w = Math.max(min, o.w - dx); r.x = o.x + o.w - w; r.w = w; }
-      if (d.h === "n") { const h = Math.max(min, o.d - dy); r.y = o.y + o.d - h; r.d = h; }
+      const r = d.r, o = d.o, min = 100;
+      const dx = q.x - d.x0, dy = q.y - d.y0;
+      if (d.h.includes("e")) r.w = Math.max(min, this.edge(o.x + o.w + dx, "x", r) - o.x);
+      if (d.h.includes("s")) r.d = Math.max(min, this.edge(o.y + o.d + dy, "y", r) - o.y);
+      if (d.h.includes("w")) { const w = Math.max(min, o.x + o.w - this.edge(o.x + dx, "x", r)); r.x = o.x + o.w - w; r.w = w; }
+      if (d.h.includes("n")) { const h = Math.max(min, o.y + o.d - this.edge(o.y + dy, "y", r)); r.y = o.y + o.d - h; r.d = h; }
     }
     d.moved = true;
     this.draw();
@@ -126,7 +138,44 @@ export class Editor {
       } else this.draw();
       return;
     }
+    if (d.type === "handle" && d.moved) this.keepOpenings(d);
+    if (d.type === "pan") return;
     if (d.moved) this.ctx.changed(); else this.ctx.discardCommit();
+  }
+  // Chap yoki yuqori devor surilsa ham eshik va derazalar joyida qoladi
+  keepOpenings(d) {
+    const r = d.r, dx = r.x - d.o.x, dy = r.y - d.o.y;
+    for (const o of this.ctx.p.openings) {
+      if (o.room !== r.id) continue;
+      const h = o.side === "n" || o.side === "s";
+      o.off -= h ? dx : dy;
+      const len = h ? r.w : r.d, half = o.w / 2;
+      o.off = Math.max(half, Math.min(len - half, o.off));
+    }
+  }
+  // Qo'shni xona devoriga yopishish: chekka yoki bir devor qalinligi narida
+  edge(v, axis, self) {
+    const t = this.ctx.p.wallT, best = { d: 16, c: snap(v) };
+    for (const r of this.ctx.p.rooms) {
+      if (r === self) continue;
+      const a = axis === "x" ? r.x : r.y, b = a + (axis === "x" ? r.w : r.d);
+      for (const c of [a, b, a - t, b + t]) {
+        const dist = Math.abs(c - v);
+        if (dist < best.d) { best.d = dist; best.c = c; }
+      }
+    }
+    return best.c;
+  }
+  moveEdge(v, len, axis, self) {
+    const a = this.edge(v, axis, self);
+    if (a !== snap(v)) return a;
+    const b = this.edge(v + len, axis, self);
+    return b !== snap(v + len) ? b - len : a;
+  }
+  dims(o, r) {
+    const pad = this.vb.w / 40, fs = this.vb.w / 75;
+    o.push(`<text class="ld" style="font-size:${fs}px" x="${r.x + r.w / 2}" y="${r.y - pad / 2}">${r.w}</text>`);
+    o.push(`<text class="ld" style="font-size:${fs}px" transform="rotate(-90 ${r.x - pad / 2} ${r.y + r.d / 2})" x="${r.x - pad / 2}" y="${r.y + r.d / 2}">${r.d}</text>`);
   }
 
   draw() {
@@ -163,15 +212,19 @@ export class Editor {
     if (sel?.type === "room" && tab === "plan") {
       const r = p.rooms.find((x) => x.id === sel.id);
       if (r) {
-        const h = 22;
-        for (const [n, x, y] of [["n", r.x + r.w / 2, r.y], ["s", r.x + r.w / 2, r.y + r.d], ["w", r.x, r.y + r.d / 2], ["e", r.x + r.w, r.y + r.d / 2]]) {
-          o.push(`<rect data-t="handle" data-h="${n}" data-id="${r.id}" class="hd" x="${x - h / 2}" y="${y - h / 2}" width="${h}" height="${h}"/>`);
+        const h = Math.max(16, this.vb.w / 70), [X, Y, W, D] = [r.x, r.y, r.w, r.d];
+        const list = [["n", X + W / 2, Y], ["s", X + W / 2, Y + D], ["w", X, Y + D / 2], ["e", X + W, Y + D / 2],
+          ["nw", X, Y], ["ne", X + W, Y], ["sw", X, Y + D], ["se", X + W, Y + D]];
+        for (const [n, x, y] of list) {
+          o.push(`<rect data-t="handle" data-h="${n}" data-id="${r.id}" class="hd ${n}" x="${x - h / 2}" y="${y - h / 2}" width="${h}" height="${h}"/>`);
         }
+        this.dims(o, r);
       }
     }
     if (this.preview) {
       const v = this.preview;
       o.push(`<rect class="pv" x="${v.x}" y="${v.y}" width="${v.w}" height="${v.d}"/>`);
+      this.dims(o, v);
     }
     if (p.rooms.length) {
       const y = b.y1 + 60, x = b.x0 - 60;
@@ -192,7 +245,13 @@ export class Editor {
       o.push(`<text class="rl" x="${r.x}" y="${r.y + (r.horiz ? -18 : 5)}">${r.sec}s</text>`);
     }
   }
-  elec(o, e) { for (const s of e.segs) o.push(this.line(s.pts, "pe")); }
+  elec(o, e) {
+    for (const s of e.segs) o.push(this.line(s.pts, s.branch ? "pb" : "pe"));
+    for (const b of e.boxes) {
+      if (b.manual) continue;
+      o.push(`<rect class="jb" x="${b.x - 11}" y="${b.y - 11}" width="22" height="22"><title>${esc(b.title)}</title></rect>`);
+    }
+  }
   plumb(o, w) {
     for (const s of w.sewer) o.push(this.line(s.pts, "ps", 0, s.dn === 110 ? 9 : 5));
     for (const s of w.cold) o.push(this.line(s.pts, "pc", -7));

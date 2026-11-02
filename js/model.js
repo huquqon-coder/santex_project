@@ -20,6 +20,7 @@ export const WALL_MATERIALS = {
 export const ITEM_KINDS = {
   boiler: { name: "Qozon", group: "heat", w: 60, d: 80, color: "#c9611c" },
   panel: { name: "Elektr shchiti", group: "elec", w: 40, d: 12, color: "#3b4a55" },
+  jbox: { name: "Taqsimlash korobkasi", group: "elec", w: 22, d: 22, color: "#7a4fa3" },
   light: { name: "Chiroq", group: "elec", w: 26, d: 26, color: "#c79a1e", round: true },
   switch: { name: "Viklyuchatel", group: "elec", w: 16, d: 16, color: "#5a6a75" },
   socket: { name: "Rozetka", group: "elec", w: 16, d: 16, color: "#2f7d57" },
@@ -60,6 +61,7 @@ export function emptyProject() {
     regime: "80/60",
     gravity: false,
     pit: 100,
+    elecMode: "box",
     rooms: [],
     openings: [],
     items: [],

@@ -1,5 +1,6 @@
 import { ITEM_KINDS, ROOM_TYPES, WALL_MATERIALS, emptyProject, sampleProject } from "./model.js";
 import { Editor } from "./editor.js";
+import { overlaps } from "./geometry.js";
 import { computeHeating, heatingBom } from "./heating.js";
 import { computeElectric, electricBom } from "./electric.js";
 import { computePlumbing, plumbingBom } from "./plumbing.js";
@@ -10,7 +11,7 @@ const KEY = "santex-loyiha";
 const TOOLS = {
   plan: [["select", "Tanlash"], ["room", "Xona chizish"], ["door", "Ichki eshik"], ["entry", "Kirish eshigi"], ["window", "Deraza"]],
   heat: [["select", "Tanlash"], ["boiler", "Qozon"]],
-  elec: [["select", "Tanlash"], ["panel", "Shchit"], ["light", "Chiroq"], ["switch", "Viklyuchatel"], ["socket", "Rozetka"], ["power", "Quvvatli rozetka"]],
+  elec: [["select", "Tanlash"], ["panel", "Shchit"], ["jbox", "Korobka"], ["light", "Chiroq"], ["switch", "Viklyuchatel"], ["socket", "Rozetka"], ["power", "Quvvatli rozetka"]],
   plumb: [["select", "Tanlash"], ["waterin", "Suv kirishi"], ["sewerout", "Kanalizatsiya chiqishi"], ["sink", "Rakovina"], ["toilet", "Unitaz"], ["bathtub", "Vanna"], ["shower", "Dush"], ["washer", "Kir mashinasi"], ["heater", "Suv isitkich"]],
 };
 
@@ -40,6 +41,7 @@ const editor = new Editor($("plan"), ctx);
 function recompute() {
   const p = ctx.p;
   ctx.res = { heat: computeHeating(p), elec: computeElectric(p), plumb: computePlumbing(p) };
+  $("planHint").hidden = p.rooms.length > 0;
   editor.draw();
   renderSide();
   if (ctx.tab === "report") renderRep();
@@ -105,7 +107,8 @@ function resultHtml() {
   const { p, res, tab } = ctx;
   if (!res) return "";
   if (tab === "plan" || tab === "view3d") {
-    return `<h2>Loyiha</h2>` + field("pName", "Nomi", `<input id="pName" value="${p.name.replace(/"/g, "&quot;")}">`) +
+    const bad = overlaps(p);
+    return warningsHtml(bad.map(([a, b]) => `${a.name} va ${b.name} ustma-ust tushgan.`)) + `<h2>Loyiha</h2>` + field("pName", "Nomi", `<input id="pName" value="${p.name.replace(/"/g, "&quot;")}">`) +
       `<div class="row">` + field("pH", "Shift, sm", numI("pH", p.h, 240, 500)) + field("pT", "Devor, sm", numI("pT", p.wallT, 10, 80)) + `</div>` +
       field("pMat", "Devor materiali", sel("pMat", Object.entries(WALL_MATERIALS).map(([k, v]) => [k, v.name]), p.wallMaterial)) +
       field("pIns", "Izolyatsiya", sel("pIns", [["0", "Yo'q"], ["5", "5 sm"], ["10", "10 sm"]], String(p.ins))) +
@@ -123,7 +126,10 @@ function resultHtml() {
   }
   if (tab === "elec") {
     const e = res.elec;
-    return `<h2>Elektr</h2><dl class="u"><dt>O'rnatilgan quvvat</dt><dd>${fmt(e.total / 1000, 1)} kW</dd><dt>Hisobiy quvvat</dt><dd>${fmt((e.demand || 0) / 1000, 1)} kW</dd><dt>Kirish avtomati</dt><dd>${e.inputA} A</dd></dl>` +
+    return `<h2>Elektr</h2>` + field("pElec", "Montaj usuli", sel("pElec", [["box", "Taqsimlash korobkasi bilan"], ["loop", "Korobkasiz (shleyf)"]], p.elecMode)) +
+      `<dl class="u"><dt>O'rnatilgan quvvat</dt><dd>${fmt(e.total / 1000, 1)} kW</dd><dt>Hisobiy quvvat</dt><dd>${fmt((e.demand || 0) / 1000, 1)} kW</dd><dt>Kirish avtomati</dt><dd>${e.inputA} A</dd>` +
+      `<dt>Korobkalar</dt><dd>${e.boxes.length} dona</dd><dt>Kabel</dt><dd>${fmt(e.len)} m</dd><dt>${e.boxMode ? "Korobkasiz bo'lsa" : "Korobka bilan bo'lsa"}</dt><dd>${fmt(e.altLen)} m</dd></dl>` +
+      (e.boxMode ? `<p class="hint">Xonaga korobka qo'ymasangiz, u avtomatik joylanadi (siyohrang). "Korobka" bilan o'zingiz joyini tanlaysiz.</p>` : "") +
       `<table class="mini"><tr><th>Guruh</th><th>Avtomat</th><th>Kabel</th><th>m</th></tr>${e.groups.map((g) => `<tr><td>${g.name}${g.rcd ? " (UZO)" : ""}</td><td>${g.br} A</td><td>${g.mm}</td><td>${fmt(g.len)}</td></tr>`).join("")}</table>` + warningsHtml(e.warnings);
   }
   if (tab === "plumb") {
@@ -175,7 +181,7 @@ $("side").addEventListener("change", (e) => {
     oW: () => (o.w = n), oH: () => (o.h = n), oS: () => (o.sill = n),
     pName: () => (p.name = v), pH: () => (p.h = n), pT: () => (p.wallT = n), pMat: () => (p.wallMaterial = v),
     pIns: () => (p.ins = n), pOut: () => (p.tout = n), pReg: () => (p.regime = v),
-    pGrav: () => (p.gravity = e.target.checked), pPit: () => (p.pit = n),
+    pGrav: () => (p.gravity = e.target.checked), pPit: () => (p.pit = n), pElec: () => (p.elecMode = v),
   }[id];
   if (!set) return ctx.discardCommit();
   set(); ctx.changed();
@@ -204,7 +210,7 @@ addEventListener("keydown", (e) => {
   if (e.key === "Escape") { ctx.tool = "select"; renderTools(); }
 });
 function replace(p) { ctx.undo.push(JSON.stringify(ctx.p)); ctx.p = p; ctx.sel = null; view3dFramed = false; recompute(); save(); setTab("plan"); }
-$("new").onclick = () => replace(emptyProject());
+$("new").onclick = () => { replace(emptyProject()); ctx.tool = "room"; renderTools(); };
 $("sample").onclick = () => replace(sampleProject());
 $("export").onclick = () => {
   const a = document.createElement("a");
