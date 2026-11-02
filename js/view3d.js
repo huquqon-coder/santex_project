@@ -101,8 +101,9 @@ export class View3D {
   }
   frame(p) {
     const b = bounds(p), cx = m(b.x0 + b.x1) / 2, cz = m(b.y0 + b.y1) / 2, R = Math.max(m(b.x1 - b.x0), m(b.y1 - b.y0));
-    this.camera.position.set(cx + R * 0.6, R * 0.8, cz + R * 0.9);
-    this.controls.target.set(cx, 0.3, cz);
+    const up = ((p.floors || 1) - 1) * m(p.h + (p.slab ?? 30));
+    this.camera.position.set(cx + R * 0.7, R * 0.85 + up, cz + R * 1.05);
+    this.controls.target.set(cx, 0.3 + up / 2, cz);
     this.sun.target.position.set(cx, 0, cz);
   }
   // Yer: qozon chuquri joyi ochiq qoladi
