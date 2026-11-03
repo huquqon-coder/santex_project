@@ -9,6 +9,8 @@ const ONE_ONLY = new Set(["boiler", "panel", "waterin", "sewerout", "heater"]);
 const TAB_GROUP = { plan: "build", heat: "heat", elec: "elec", plumb: "plumb" };
 const onFloor = (s, f) => floorOf(s) === f;
 
+const LIGHT_LETTER = { chandelier: "L", ledpanel: "P", ledspot: "S", halogen: "G", bulb: "", sconce: "B", strip: "T" };
+
 // Rejadagi shartli belgilar
 function symbol(kind, k) {
   const w = k.w / 2, d = k.d / 2, c = k.color;
@@ -109,6 +111,21 @@ export class Editor {
       }
       return;
     }
+    if (tool === "rad") {
+      const s = nearestSide(v, q.x, q.y);
+      if (s) c.addRadiator(s.room, s.side, s.off);
+      return;
+    }
+    const radEl = e.target.closest('[data-t="rad"]');
+    if (radEl) {
+      const r2 = c.ensureManualRad(radEl.dataset.id);
+      if (r2) {
+        c.select({ type: "rad", id: r2.id });
+        c.commit();
+        this.drag = { type: "rad", e: r2, r: c.p.rooms.find((x) => x.id === r2.room) };
+      }
+      return;
+    }
     if (ITEM_KINDS[tool] && !onHandle) {
       c.commit();
       if (ONE_ONLY.has(tool)) c.p.items = c.p.items.filter((i) => i.kind !== tool);
@@ -160,6 +177,23 @@ export class Editor {
       d.r.y = this.moveEdge(ny, d.r.d, "y", d.r);
     }
     if (d.type === "item") { d.i.x = snap(d.o.x + q.x - d.x0); d.i.y = snap(d.o.y + q.y - d.y0); }
+    if (d.type === "rad") {
+      // Radiator faqat o'z xonasining devorlari bo'ylab suriladi
+      const r = d.r, opts = [
+        ["n", q.x - r.x, Math.abs(q.y - r.y), r.w], ["s", q.x - r.x, Math.abs(q.y - r.y - r.d), r.w],
+        ["w", q.y - r.y, Math.abs(q.x - r.x), r.d], ["e", q.y - r.y, Math.abs(q.x - r.x - r.w), r.d],
+      ].sort((a, b) => a[2] - b[2]);
+      const [side, off, , len] = opts[0];
+      const rr = this.ctx.res.heat.rads.find((x) => x.id === d.e.id);
+      const half = Math.min(len / 2, (rr?.w || 60) / 2 + 5);
+      d.e.side = side; d.e.off = Math.max(half, Math.min(len - half, snap(off)));
+      if (rr) {
+        const o = d.e.off;
+        rr.side = side; rr.horiz = side === "n" || side === "s";
+        rr.x = side === "w" ? r.x + 9 : side === "e" ? r.x + r.w - 9 : r.x + o;
+        rr.y = side === "n" ? r.y + 9 : side === "s" ? r.y + r.d - 9 : r.y + o;
+      }
+    }
     if (d.type === "open") {
       const r = this.ctx.p.rooms.find((x) => x.id === d.o.room);
       const h = d.o.side === "n" || d.o.side === "s";
@@ -264,7 +298,7 @@ export class Editor {
       const hit = k.round ? 2 + k.w / 2 : 0;
       o.push(`<g class="${cls}" ${attr} transform="translate(${i.x} ${i.y})${i.rot ? " rotate(90)" : ""}"><title>${k.name}</title>` +
         (hit ? `<circle class="bg" r="${hit}"/>` : `<rect class="bg" x="${-k.w / 2}" y="${-k.d / 2}" width="${k.w}" height="${k.d}"/>`) +
-        symbol(i.kind, k) + `</g>`);
+        symbol(i.kind, k) + (i.kind === "light" ? `<text class="lt" y="${-k.w / 2 - 6}" style="fill:var(--fg);stroke:none;font:600 15px var(--mono);text-anchor:middle">${LIGHT_LETTER[i.ltype] || ""}</text>` : "") + `</g>`);
     }
     if (sel?.type === "room" && tab === "plan") {
       const r = p.rooms.find((x) => x.id === sel.id);
@@ -298,10 +332,11 @@ export class Editor {
     const f = this.ctx.floor;
     for (const s of h.segs.filter((q) => onFloor(q, f))) { o.push(this.line(s.pts, "ph", -5)); o.push(this.line(s.pts, "pc", 5)); }
     for (const q of h.risers || []) o.push(`<circle class="rs2" cx="${q.x}" cy="${q.y}" r="13"><title>Stoyak</title></circle>`);
+    const sel = this.ctx.sel;
     for (const r of h.rads.filter((q) => onFloor(q, f))) {
-      const W = r.horiz ? r.w : 14, D = r.horiz ? 14 : r.w;
-      o.push(`<rect class="rad" x="${r.x - W / 2}" y="${r.y - D / 2}" width="${W}" height="${D}"><title>R${r.no}: ${r.sec} seksiya, ${Math.round(r.power)} W</title></rect>`);
-      o.push(`<text class="rl" x="${r.x}" y="${r.y + (r.horiz ? -18 : 5)}">${r.sec}s</text>`);
+      const W = r.horiz ? r.w : 16, D = r.horiz ? 16 : r.w, s = sel?.type === "rad" && sel.id === r.id;
+      o.push(`<rect data-t="rad" data-id="${r.id}" class="rad ${r.kind} ${s ? "s" : ""}" x="${r.x - W / 2}" y="${r.y - D / 2}" width="${W}" height="${D}"><title>R${r.no}: ${r.label}, ${Math.round(r.power)} W</title></rect>`);
+      o.push(`<text class="rl" x="${r.x}" y="${r.y + (r.horiz ? -18 : 5)}">${r.short}</text>`);
     }
   }
   elec(o, e) {

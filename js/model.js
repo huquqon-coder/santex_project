@@ -37,6 +37,20 @@ export const ITEM_KINDS = {
   heater: { name: "Suv isitkich", group: "plumb", w: 45, d: 45, color: "#b4553f", round: true },
 };
 
+// Chiroq turlari: quvvati bitta chiroq uchun, n bitta nuqtadagi soni
+export const LIGHT_TYPES = {
+  chandelier: { name: "Lyustra", w: 120, n: 1 },
+  ledpanel: { name: "LED panel", w: 36, n: 1 },
+  ledspot: { name: "LED spot", w: 7, n: 6 },
+  halogen: { name: "Galogen spot", w: 35, n: 6 },
+  bulb: { name: "Oddiy lampochka", w: 60, n: 1 },
+  sconce: { name: "Bra (devor chirog'i)", w: 40, n: 1, wall: true },
+  strip: { name: "LED lenta", w: 14, n: 5 },
+};
+// O'rnatish balandligi poldan, sm. Shift ostidagilar uchun null.
+export const MOUNT = { socket: 30, power: 30, switch: 90, panel: 170, jbox: null, light: null };
+export const mountH = (i, p) => i.h ?? (i.kind === "light" && LIGHT_TYPES[i.ltype]?.wall ? 200 : MOUNT[i.kind] ?? null) ?? p.h - 20;
+
 let seq = 1;
 export const uid = () => `e${Date.now().toString(36)}${(seq++).toString(36)}`;
 
@@ -48,7 +62,9 @@ export function opening(kind, roomId, side, off, extra = {}) {
   return { id: uid(), kind, room: roomId, side, off, ...base, ...extra };
 }
 export function item(kind, x, y) {
-  return { id: uid(), kind, x, y };
+  const i = { id: uid(), kind, x, y };
+  if (kind === "light") i.ltype = "ledpanel";
+  return i;
 }
 
 export function emptyProject() {
@@ -68,6 +84,12 @@ export function emptyProject() {
     fuel: "gas",      // gas yoki solid
     pit: 100,
     elecMode: "box",
+    cableMetal: "cu",  // cu: mis, al: alyuminiy
+    groupCable: {},    // guruh nomi bo'yicha qo'lda tanlangan kesim, mm²
+    radType: "cast",   // cast, bimetal yoki panel
+    panelType: 22,
+    panelH: 500,
+    radiators: [],     // qo'lda qo'yilgan radiatorlar: { id, room, side, off, kind, size, ptype, ph }
     rooms: [],
     openings: [],
     items: [],
@@ -108,7 +130,8 @@ export function sampleProject() {
     item("sink", 435, 25), item("sink", 845, 25), item("washer", 1005, 32), item("heater", 1005, 90),
     item("shower", 1100, 48), item("waterin", 1140, 8), item("sewerout", 1100, 8),
     item("panel", 730, 720),
-    item("light", 180, 375), item("light", 575, 375), item("light", 970, 100), item("light", 970, 495), item("light", 380, -140),
+    { ...item("light", 180, 375), ltype: "chandelier" }, { ...item("light", 575, 375), ltype: "ledpanel" },
+    { ...item("light", 970, 100), ltype: "ledspot" }, { ...item("light", 970, 495), ltype: "chandelier" }, { ...item("light", 380, -140), ltype: "bulb" },
     item("switch", 350, 520), item("switch", 410, 520), item("switch", 800, 260), item("switch", 830, 190),
     item("socket", 10, 200), item("socket", 10, 520), item("socket", 180, 740), item("socket", 420, 20), item("socket", 700, 20),
     item("socket", 1140, 400), item("socket", 1000, 740),

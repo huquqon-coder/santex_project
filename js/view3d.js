@@ -1,5 +1,5 @@
 // 3D ko'rinish. Ma'lumot rejadan olinadi, o'lchamlar metrga o'tkaziladi.
-import { ITEM_KINDS, ROOM_TYPES } from "./model.js";
+import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, mountH } from "./model.js";
 import { bounds, floorList, floorOf, fv, nearestWall, openingRect, roomAt, sideInfo, wallBoxes } from "./geometry.js";
 import * as P from "./models3d.js";
 
@@ -279,11 +279,16 @@ export class View3D {
       if (k.group === "plumb" && !opt.plumb) continue;
       const w = nearestWall(p, i.x, i.y), x = m(i.x), z = m(i.y), wx = m(w.x), wz = m(w.y);
       switch (i.kind) {
-        case "socket": this.place(P.socket(false), wx, 0.3, wz, w.ix, w.iz); break;
-        case "power": this.place(P.socket(true), wx, 0.3, wz, w.ix, w.iz); break;
-        case "switch": this.place(P.wallSwitch(), wx, 1, wz, w.ix, w.iz); break;
-        case "panel": this.place(P.panel(), wx, Math.min(1.4, wallH - 0.5), wz, w.ix, w.iz); break;
-        case "light": this.place(P.lamp(Math.min(0.5, wallH * 0.3)), x, wallH, z); break;
+        case "socket": this.place(P.socket(false), wx, m(mountH(i, p)), wz, w.ix, w.iz); break;
+        case "power": this.place(P.socket(true), wx, m(mountH(i, p)), wz, w.ix, w.iz); break;
+        case "switch": this.place(P.wallSwitch(), wx, m(mountH(i, p)), wz, w.ix, w.iz); break;
+        case "panel": this.place(P.panel(), wx, m(mountH(i, p)) - 0.5, wz, w.ix, w.iz); break;
+        case "light": {
+          const t = LIGHT_TYPES[i.ltype] ? i.ltype : "ledpanel", n = i.n ?? LIGHT_TYPES[t].n;
+          if (LIGHT_TYPES[t].wall) this.place(P.light(t, n, 0), wx, m(mountH(i, p)), wz, w.ix, w.iz);
+          else this.place(P.light(t, n, Math.min(0.5, wallH * 0.3)), x, Math.min(wallH, m(p.h)), z);
+          break;
+        }
         case "heater": this.place(P.heater(), wx, Math.min(1.1, Math.max(0.9, wallH - 0.9)), wz, w.ix, w.iz); break;
         case "sink": this.place(P.sink(), x, 0, z, w.ix, w.iz); break;
         case "toilet": this.place(P.toilet(), x, 0, z, w.ix, w.iz); break;
@@ -304,10 +309,11 @@ export class View3D {
     for (const r of h.rads.filter((q) => q.floor === f)) {
       const s = sideInfo(r.room, r.side), ix = -s.nx, iz = -s.ny, tx = iz, tz = -ix;
       const x = m(r.x), z = m(r.y), half = m(r.w) / 2 + 0.04;
-      this.place(P.radiator(r.sec), x, 0, z, ix, iz);
+      const model = r.kind === "panel" ? P.radiatorPanel(m(r.len), m(r.h - 4), r.ptype) : r.kind === "bimetal" ? P.radiatorBimetal(r.sec) : P.radiator(r.sec);
+      this.place(model, x, 0, z, ix, iz);
       const end = (k) => [x + tx * k * half, z + tz * k * half];
       const [ax, az] = end(-1), [bx, bz] = end(1);
-      const yT = 0.66, yB = 0.18;
+      const yT = 0.13 + m(r.h) - 0.06, yB = 0.18;
       const sOff = -0.05, rOff = 0.05;
       this.tube(new THREE.Vector3(x + sOff, ySup, z + sOff), new THREE.Vector3(ax, ySup, az), 0.012, this.mat.hot);
       this.tube(new THREE.Vector3(ax, ySup, az), new THREE.Vector3(ax, yT, az), 0.012, this.mat.hot);

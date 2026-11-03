@@ -1,17 +1,26 @@
 // Elektr tarmog'i: guruhlar, avtomat va kabel tanlash, korobkali yoki shleyf montaj.
-import { ROOM_TYPES } from "./model.js";
+import { LIGHT_TYPES, ROOM_TYPES } from "./model.js";
 import { floorList, floorOf, fv, roomAt } from "./geometry.js";
 import { buildGrid, multiFloor, routeTree } from "./route.js";
 
-const WATT = { light: 40, socket: 200, power: 2000, switch: 0 };
+const WATT = { socket: 200, power: 2000, switch: 0 };
+export const watts = (i) => i.watts ?? (i.kind === "light" ? lightOf(i).w * (i.n ?? lightOf(i).n) : WATT[i.kind]);
+export const lightOf = (i) => LIGHT_TYPES[i.ltype] || LIGHT_TYPES.ledpanel;
+const POINTS = new Set(["light", "switch", "socket", "power"]);
 const BREAKERS = [10, 16, 20, 25, 32, 40];
-const CABLE = { 10: 1.5, 16: 2.5, 20: 2.5, 25: 4, 32: 6, 40: 10 };
+export const SECTIONS = [1.5, 2.5, 4, 6, 10];
+// Avtomat bo'yicha eng kichik kesim: alyuminiy mis'dan bir pog'ona yo'g'on
+const CABLE = {
+  cu: { 10: 1.5, 16: 2.5, 20: 2.5, 25: 4, 32: 6, 40: 10 },
+  al: { 10: 2.5, 16: 2.5, 20: 4, 25: 4, 32: 6, 40: 10 },
+};
+export const METALS = { cu: { name: "Mis", rho: 0.0175, cable: "VVGng" }, al: { name: "Alyuminiy", rho: 0.028, cable: "AVVGng" } };
 const V = 220, MAX_SOCKETS = 6;
 const GRID = { door: 3, wall: 2, outside: 4 };
 
 function buildGroups(v, f, many) {
   const suffix = many ? `, ${f + 1}-qavat` : "";
-  const pts = v.items.filter((i) => WATT[i.kind] !== undefined);
+  const pts = v.items.filter((i) => POINTS.has(i.kind));
   const groups = [];
   const lights = pts.filter((i) => i.kind === "light" || i.kind === "switch");
   if (lights.length) groups.push({ name: "Yoritish" + suffix, items: lights, wet: false, light: true });
@@ -89,11 +98,15 @@ export function computeElectric(p) {
     if (!cache.has(k)) cache.set(k, buildGrid(fv(p, f), GRID));
     return cache.get(k);
   };
+  const metal = p.cableMetal === "al" ? "al" : "cu";
+  if (metal === "al") warnings.push("Uy ichida alyuminiy sim tavsiya etilmaydi: ulanish joylari qiziydi va yong'in xavfi yuqori.");
   for (const g of groups) {
-    const P = g.items.reduce((a, i) => a + WATT[i.kind], 0);
+    const P = g.items.reduce((a, i) => a + watts(i), 0);
     const I = (P * 1.1) / V;
     const br = BREAKERS.find((b) => b >= I && (g.light ? true : b >= 16)) || 40;
-    const mm = CABLE[br];
+    const need = CABLE[metal][br], manual = p.groupCable?.[g.name];
+    const mm = manual || need;
+    if (manual && manual < need) warnings.push(`${g.name}: ${manual} mm² sim ${br} A avtomatga yupqa, kamida ${need} mm² kerak.`);
     let len = 0;
     if (panel) {
       const w = wire(p, g, panel, grids, cache, boxMode, out.boxes);
@@ -103,7 +116,11 @@ export function computeElectric(p) {
       out.risers.push(...w.risers);
       out.altLen += wire(p, g, panel, grids, cache, !boxMode, []).len;
     }
-    out.groups.push({ name: g.name, count: g.items.length, P, I, br, mm, len, rcd: g.wet, kind: g.items[0].kind });
+    // Kuchlanish tushishi: yuk liniya bo'ylab taqsimlangan bo'lsa yarim uzunlik bilan
+    const Lr = g.items.length > 1 ? len / 2 : len;
+    const dU = ((2 * METALS[metal].rho * Lr * (P / V)) / mm / V) * 100;
+    if (dU > 4) warnings.push(`${g.name}: kuchlanish ${dU.toFixed(1)} % tushadi, simni yo'g'onlashtiring.`);
+    out.groups.push({ name: g.name, count: g.items.length, P, I, br, mm, need, manual: !!manual, dU, len, rcd: g.wet, kind: g.items[0].kind });
     out.cable[mm] = (out.cable[mm] || 0) + len;
     out.total += P;
     out.len += len;
@@ -125,8 +142,9 @@ export function electricBom(p, e) {
   if (!e.groups.length) return [];
   const G = "Elektr", n = (k) => p.items.filter((i) => i.kind === k && floorOf(i) < (p.floors || 1)).length;
   const rows = [];
+  const mt = METALS[p.cableMetal === "al" ? "al" : "cu"];
   for (const mm of Object.keys(e.cable).sort((a, b) => a - b)) {
-    rows.push({ g: G, k: "cable" + mm, name: "Mis kabel VVGng", spec: `3×${mm} mm²`, unit: "m", qty: Math.ceil(e.cable[mm]) });
+    rows.push({ g: G, k: `cable_${mt.cable}_${mm}`, name: `${mt.name} kabel ${mt.cable}`, spec: `3×${mm} mm²`, unit: "m", qty: Math.ceil(e.cable[mm]) });
   }
   const br = {};
   e.groups.forEach((g) => (br[g.br] = (br[g.br] || 0) + 1));
@@ -140,9 +158,16 @@ export function electricBom(p, e) {
     rows.push({ g: G, k: "jbox", name: "Taqsimlash korobkasi", spec: "100×100 mm", unit: "dona", qty: e.boxes.length });
     rows.push({ g: G, k: "wago", name: "Ulash klemmasi", spec: "5 kontaktli", unit: "dona", qty: Math.ceil((wires * 3) / 4) });
   }
-  for (const [k, name] of [["socket", "Rozetka"], ["power", "Quvvatli rozetka"], ["switch", "Viklyuchatel"], ["light", "Chiroq"]]) {
+  for (const [k, name] of [["socket", "Rozetka"], ["power", "Quvvatli rozetka"], ["switch", "Viklyuchatel"]]) {
     if (n(k)) rows.push({ g: G, k: "e_" + k, name, spec: "", unit: "dona", qty: n(k) });
   }
+  const lights = {};
+  for (const i of p.items.filter((x) => x.kind === "light" && floorOf(x) < (p.floors || 1))) {
+    const t = lightOf(i), cnt = i.n ?? t.n, w = i.watts ? Math.round(i.watts / cnt) : t.w, key = `${i.ltype || "ledpanel"}_${w}`;
+    lights[key] = lights[key] || { name: t.name, spec: `${w} W`, qty: 0, unit: i.ltype === "strip" ? "m" : "dona" };
+    lights[key].qty += cnt;
+  }
+  for (const [k, l] of Object.entries(lights)) rows.push({ g: G, k: "lt_" + k, name: l.name, spec: l.spec, unit: l.unit, qty: l.qty });
   const pts = n("socket") + n("power") + n("switch") + n("light");
   rows.push({ g: "Elektr ishi", k: "l_point", name: "Nuqtani o'rnatish", unit: "nuqta", qty: pts, labor: true });
   rows.push({ g: "Elektr ishi", k: "l_cable", name: "Kabel tortish", unit: "m", qty: Math.ceil(e.len), labor: true });

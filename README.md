@@ -6,7 +6,8 @@ Bir yoki ikki qavatli uy rejasini chizib, isitish, elektr va santexnika tizimlar
 
 - **Reja:** xona chizish, eshik va deraza qo'yish, o'lchamlarni tahrirlash, qavatlar, zina va stoyak.
 - **Isitish:** issiqlik yo'qotish, radiator tanlash va joylash, qozon quvvati, quvur yo'li. Suv aylanishi: nasos, o'zi aylanadigan yoki gibrid. Tizim: ochiq yoki yopiq.
-- **Elektr:** guruhlarga bo'lish, avtomat va kabel tanlash, taqsimlash korobkasi bilan yoki korobkasiz montaj.
+- **Radiatorlar:** cho'yan, bimetall yoki po'lat panel. Joyini surish, sonini va o'lchamini qo'lda berish mumkin.
+- **Elektr:** guruhlarga bo'lish, avtomat va kabel tanlash, taqsimlash korobkasi bilan yoki korobkasiz montaj. Chiroq turlari, o'rnatish balandligi, mis yoki alyuminiy sim, kesim va kuchlanish tushishi.
 - **Santexnika:** sovuq va issiq suv, kanalizatsiya diametri va uzunligi.
 - **3D:** uy va tizimlarning aylantiriladigan modeli.
 - **Hisob:** materiallar ro'yxati va narx, chop etish.

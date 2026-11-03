@@ -2,6 +2,7 @@
 import { ROOM_TYPES, WALL_MATERIALS } from "./model.js";
 import { SIDES, coverage, extLength, floorList, floorOf, fv, isExterior, sideInfo, openingRect } from "./geometry.js";
 import { multiFloor, segLen } from "./route.js";
+import { RAD_KINDS, sizeRad, unitMax } from "./radiators.js";
 
 const U_WIN = 1.6, U_DOOR = 2, U_CEIL = 0.5, U_FLOOR = 0.6, T_GROUND = 5, CEIL_K = 0.9;
 const Q70 = 160, SEC_W = 9.3, SEC_L = 1.45, MAX_SEC = 14;
@@ -91,28 +92,40 @@ export function computeHeating(p) {
     if (!t.heated || f >= (p.floors || 1)) continue;
     const l = roomLoss(p, r, wallU);
     for (const k in totals) totals[k] += l.parts[k];
-    const qs = Q70 * Math.pow((tm - t.ti) / 70, 1.3);
-    const need = Math.max(4, Math.ceil(l.Q / qs));
-    const spots = radiatorSpots(fv(p, f), r);
-    const windows = spots.filter((s) => s.rank === 0).length;
-    const units = Math.max(1, windows, Math.ceil(need / MAX_SEC));
-    const chosen = [];
-    for (const s of spots) {
-      if (chosen.length >= units) break;
-      if (chosen.some((c) => c.side === s.side && Math.abs(c.off - s.off) < 170)) continue;
-      chosen.push(s);
+    const dTm = tm - t.ti;
+    // Qo'lda boshqariladigan xonada foydalanuvchi qo'ygan radiatorlar, aks holda avtomatik joylar
+    let entries;
+    if (r.radManual) entries = (p.radiators || []).filter((q) => q.room === r.id);
+    else {
+      const spots = radiatorSpots(fv(p, f), r);
+      const windows = spots.filter((s) => s.rank === 0).length;
+      const units = Math.max(1, windows, Math.ceil(l.Q / unitMax(p.radType || "cast", p, dTm)));
+      entries = [];
+      for (const s of spots) {
+        if (entries.length >= units) break;
+        if (entries.some((c) => c.side === s.side && Math.abs(c.off - s.off) < 170)) continue;
+        entries.push({ side: s.side, off: s.off });
+      }
+      if (!entries.length) warnings.push(`${r.name}: radiator uchun bo'sh devor topilmadi.`);
     }
-    if (!chosen.length) warnings.push(`${r.name}: radiator uchun bo'sh devor topilmadi.`);
-    const sec = chosen.length ? Math.max(4, Math.ceil(need / chosen.length)) : 0;
-    for (const c of chosen) {
-      const s = sideInfo(r, c.side);
-      const [x, y] = s.at(c.off);
+    if (r.radManual && !entries.length) warnings.push(`${r.name}: radiator yo'q.`);
+    const per = entries.length ? l.Q / entries.length : 0;
+    let power = 0;
+    const labels = [];
+    entries.forEach((e, idx) => {
+      const s = sideInfo(r, e.side);
+      const [x, y] = s.at(e.off);
+      const z = sizeRad(e, p, per, dTm);
+      power += z.power; labels.push(z.label);
       rads.push({
-        no: rads.length + 1, room: r, floor: f, side: c.side, sec, w: sec * SEC_W, power: sec * qs,
-        x: x - s.nx * 9, y: y - s.ny * 9, load: sec * qs, horiz: c.side === "n" || c.side === "s",
+        ...z, no: rads.length + 1, id: e.id || `auto:${r.id}:${idx}`, manual: !!e.id, idx, room: r, floor: f, side: e.side, off: e.off,
+        x: x - s.nx * 9, y: y - s.ny * 9, load: z.power, horiz: e.side === "n" || e.side === "s",
       });
-    }
-    rooms.push({ r, floor: f, A: l.A, Q: l.Q, sec, units: chosen.length, ti: t.ti });
+    });
+    if (entries.length && power < l.Q * 0.95) warnings.push(`${r.name}: radiatorlar ${Math.round(l.Q - power)} W kam beradi.`);
+    const same = labels.every((x) => x === labels[0]);
+    const label = !labels.length ? "yo'q" : same ? `${labels.length} × ${labels[0]}` : labels.join(", ");
+    rooms.push({ r, floor: f, A: l.A, Q: l.Q, power, label, units: entries.length, ti: t.ti, manual: !!r.radManual });
   }
 
   const Q = rooms.reduce((a, x) => a + x.Q, 0);
@@ -123,7 +136,7 @@ export function computeHeating(p) {
   const boiler = p.items.find((i) => i.kind === "boiler");
   const flow = (w) => w / (1.163 * dt);
   const out = {
-    rooms, rads, Q, need, boilerKw, totals, wallU, warnings, secs: rads.reduce((a, x) => a + x.sec, 0),
+    rooms, rads, Q, need, boilerKw, totals, wallU, warnings, secs: rads.reduce((a, x) => a + (x.sec || 0), 0),
     segs: [], lens: {}, gravity: null, flow: flow(Q), boiler,
     topSupply: grav,
   };
@@ -164,7 +177,7 @@ export function computeHeating(p) {
   // Eng uzun halqa bo'yicha taxminiy qarshilik
   const longest = Math.max(0, ...rads.map((r) => Math.hypot(r.x - boiler.x, r.y - boiler.y) / 100)) * 2.6;
   const volPipes = out.segs.reduce((a, s) => a + (Math.PI / 4) * (s.id / 100) ** 2 * s.len * 2 * 10, 0);
-  out.volume = out.secs * SEC_L + volPipes + 40;
+  out.volume = rads.reduce((a, x) => a + x.litre, 0) + volPipes + 40;
   out.tank = Math.ceil((out.volume * 0.06) / 10) * 10;
   out.vessel = [8, 12, 18, 24, 35, 50, 80].find((v) => v >= (out.volume * 0.04) / (1 - 1.5 / 3)) || 100;
 
@@ -212,7 +225,13 @@ export function heatingBom(p, h) {
   if (!h.rads.length) return rows;
   const G = "Isitish", solid = p.fuel === "solid";
   rows.push({ g: G, k: "boiler", name: solid ? "Qattiq yoqilg'i qozoni" : "Gaz qozoni", spec: `${h.boilerKw} kW`, unit: "dona", qty: 1 });
-  rows.push({ g: G, k: "rad", name: "Radiator seksiyasi", spec: "500 mm", unit: "seksiya", qty: h.secs });
+  for (const kind of ["cast", "bimetal"]) {
+    const n = h.rads.filter((r) => r.kind === kind).reduce((a, r) => a + r.sec, 0);
+    if (n) rows.push({ g: G, k: "rad_" + kind, name: `${RAD_KINDS[kind].name} radiator`, spec: "o'qi 500 mm", unit: "seksiya", qty: n });
+  }
+  const panels = {};
+  h.rads.filter((r) => r.kind === "panel").forEach((r) => (panels[r.label] = (panels[r.label] || 0) + 1));
+  for (const [spec, n] of Object.entries(panels)) rows.push({ g: G, k: "panel_" + spec, name: "Po'lat panel radiator", spec, unit: "dona", qty: n });
   rows.push({ g: G, k: "radset", name: "Radiator kranlari va to'plami", spec: "3/4\"", unit: "to'plam", qty: h.rads.length });
   for (const dn of Object.keys(h.lens).sort((a, b) => a - b)) {
     if (h.lens[dn] < 0.1) continue;

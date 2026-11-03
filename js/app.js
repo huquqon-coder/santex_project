@@ -1,4 +1,6 @@
-import { ITEM_KINDS, ROOM_TYPES, WALL_MATERIALS, emptyProject, normalize, sampleProject, uid } from "./model.js";
+import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, WALL_MATERIALS, emptyProject, mountH, normalize, sampleProject, uid } from "./model.js";
+import { PANEL_HEIGHTS, PANEL_TYPES, RAD_KINDS } from "./radiators.js";
+import { METALS, SECTIONS, lightOf, watts } from "./electric.js";
 import { Editor } from "./editor.js";
 import { floorList, floorOf, fv, overlaps } from "./geometry.js";
 import { computeHeating, heatingBom, schemeParts } from "./heating.js";
@@ -10,7 +12,7 @@ const $ = (id) => document.getElementById(id);
 const KEY = "santex-loyiha";
 const TOOLS = {
   plan: [["select", "Tanlash"], ["room", "Xona chizish"], ["door", "Ichki eshik"], ["entry", "Kirish eshigi"], ["window", "Deraza"], ["stairs", "Zina"], ["riser", "Stoyak"]],
-  heat: [["select", "Tanlash"], ["boiler", "Qozon"]],
+  heat: [["select", "Tanlash"], ["boiler", "Qozon"], ["rad", "Radiator qo'shish"]],
   elec: [["select", "Tanlash"], ["panel", "Shchit"], ["jbox", "Korobka"], ["light", "Chiroq"], ["switch", "Viklyuchatel"], ["socket", "Rozetka"], ["power", "Quvvatli rozetka"]],
   plumb: [["select", "Tanlash"], ["waterin", "Suv kirishi"], ["sewerout", "Kanalizatsiya chiqishi"], ["sink", "Rakovina"], ["toilet", "Unitaz"], ["bathtub", "Vanna"], ["shower", "Dush"], ["washer", "Kir mashinasi"], ["heater", "Suv isitkich"]],
 };
@@ -20,6 +22,38 @@ const ctx = {
   undo: [], redo: [], pending: null,
   commit() { this.pending = JSON.stringify(this.p); },
   discardCommit() { this.pending = null; },
+  // Avtomatik radiatorlarni xona bo'yicha qo'lda boshqariladiganga o'tkazadi
+  materialize(room) {
+    const p = this.p;
+    p.radiators = p.radiators || [];
+    if (room.radManual) return [];
+    room.radManual = true;
+    return this.res.heat.rads.filter((x) => x.room.id === room.id).map((x) => {
+      const n = { id: uid(), room: room.id, side: x.side, off: x.off };
+      x.id = n.id; x.manual = true; p.radiators.push(n);
+      return n;
+    });
+  },
+  ensureManualRad(id) {
+    const p = this.p;
+    const have = (p.radiators || []).find((x) => x.id === id);
+    if (have) return have;
+    const rr = this.res.heat.rads.find((x) => x.id === id);
+    if (!rr) return null;
+    this.commit();
+    const made = this.materialize(p.rooms.find((x) => x.id === rr.room.id));
+    this.changed();
+    return made[rr.idx] || null;
+  },
+  addRadiator(room, side, off) {
+    if (!ROOM_TYPES[room.type].heated) return;
+    this.commit();
+    this.materialize(room);
+    const n = { id: uid(), room: room.id, side, off };
+    this.p.radiators.push(n);
+    this.sel = { type: "rad", id: n.id };
+    this.changed();
+  },
   select(s) { this.sel = s; renderSide(); editor.draw(); },
   changed() {
     if (this.pending) { this.undo.push(this.pending); this.undo.length > 60 && this.undo.shift(); this.redo = []; this.pending = null; }
@@ -126,10 +160,32 @@ function selectionHtml() {
       (o.kind === "window" ? field("oS", "Tokcha, sm", numI("oS", o.sill, 0, 200)) : "") +
       `<button class="del" id="del">O'chirish</button>`;
   }
+  if (s.type === "rad") {
+    const e = (p.radiators || []).find((x) => x.id === s.id), rr = ctx.res.heat.rads.find((x) => x.id === s.id);
+    if (!e || !rr) return "";
+    const room = ctx.res.heat.rooms.find((x) => x.r.id === e.room);
+    const kinds = [["", `Loyiha bo'yicha (${RAD_KINDS[p.radType || "cast"].name.toLowerCase()})`], ...Object.entries(RAD_KINDS).map(([k, v]) => [k, v.name])];
+    let h = `<h2>Radiator R${rr.no}</h2><p class="hint">${rr.room.name}: ${rr.label}, ${fmt(rr.power)} W. Xonaga ${fmt(room?.Q || 0)} W kerak, hammasi ${fmt(room?.power || 0)} W beradi.</p>` +
+      field("rKind", "Turi", sel("rKind", kinds, e.kind || ""));
+    if (RAD_KINDS[rr.kind].sectional) h += field("rSize", "Seksiyalar soni (bo'sh: avtomatik)", `<input type="number" id="rSize" min="3" max="30" step="1" value="${e.size || ""}" placeholder="${rr.sec}">`);
+    else h += `<div class="row">` + field("rPtype", "Panel turi", sel("rPtype", [["", "Loyiha"], ...PANEL_TYPES.map((t) => [String(t), String(t)])], String(e.ptype || ""))) +
+      field("rPh", "Balandligi, mm", sel("rPh", [["", "Loyiha"], ...PANEL_HEIGHTS.map((t) => [String(t), String(t)])], String(e.ph || ""))) + `</div>` +
+      field("rSize", "Uzunligi, sm (bo'sh: avtomatik)", `<input type="number" id="rSize" min="40" max="300" step="10" value="${e.size || ""}" placeholder="${rr.len}">`);
+    return h + `<p class="hint">Radiatorni sichqoncha bilan xona devori bo'ylab suring.</p><button class="plain" id="radReset">Bu xonani avtomatik joylashga qaytarish</button><button class="del" id="del">Radiatorni o'chirish</button>`;
+  }
   if (s.type === "item") {
     const i = p.items.find((x) => x.id === s.id); if (!i) return "";
     const rot = i.kind === "stairs" ? `<button class="plain" id="rot">90° burish</button>` : "";
-    return `<h2>${ITEM_KINDS[i.kind].name}</h2>${rot}<button class="del" id="del">O'chirish</button>`;
+    let h = `<h2>${ITEM_KINDS[i.kind].name}</h2>`;
+    if (i.kind === "light") {
+      const t = lightOf(i);
+      h += field("iLt", "Chiroq turi", sel("iLt", Object.entries(LIGHT_TYPES).map(([k, v]) => [k, v.name]), i.ltype || "ledpanel")) +
+        `<div class="row">` + field("iN", i.ltype === "strip" ? "Uzunligi, m" : "Soni", numI("iN", i.n ?? t.n, 1, 50, 1)) +
+        field("iW", "Jami quvvat, W", `<input type="number" id="iW" min="1" max="5000" step="1" value="${i.watts ?? ""}" placeholder="${watts(i)}">`) + `</div>`;
+    }
+    if (i.kind === "socket" || i.kind === "power") h += field("iW", "Hisobiy quvvat, W", `<input type="number" id="iW" min="1" max="10000" step="50" value="${i.watts ?? ""}" placeholder="${watts(i)}">`);
+    if (ITEM_KINDS[i.kind].group === "elec") h += field("iH", "Poldan balandligi, sm", `<input type="number" id="iH" min="0" max="${p.h}" step="5" value="${i.h ?? ""}" placeholder="${mountH(i, p)}">`);
+    return h + `${rot}<button class="del" id="del">O'chirish</button>`;
   }
   return "";
 }
@@ -162,20 +218,28 @@ function resultHtml() {
       field("pLoop", "Tizim turi", sel("pLoop", [["open", "Ochiq (bak cherdakda)"], ["closed", "Yopiq (membranali bak)"]], p.loop)) +
       field("pFuel", "Qozon", sel("pFuel", [["solid", "Qattiq yoqilg'i"], ["gas", "Gaz"]], p.fuel)) +
       field("pReg", "Suv rejimi", sel("pReg", [["80/60", "80 / 60 °C"], ["75/60", "75 / 60 °C"], ["70/55", "70 / 55 °C"]], p.regime)) +
+      field("pRad", "Radiatorlar", sel("pRad", Object.entries(RAD_KINDS).map(([k, v]) => [k, v.name]), p.radType || "cast")) +
+      (p.radType === "panel" ? `<div class="row">` + field("pPtype", "Panel turi", sel("pPtype", PANEL_TYPES.map((t) => [String(t), String(t)]), String(p.panelType || 22))) +
+        field("pPh", "Balandligi, mm", sel("pPh", PANEL_HEIGHTS.map((t) => [String(t), String(t)]), String(p.panelH || 500))) + `</div>` : "") +
       (p.circ !== "pump" ? field("pPit", "Qozon chuquri, sm", numI("pPit", p.pit, 0, 250)) : "") +
       `<dl class="u"><dt>Issiqlik yo'qotish</dt><dd>${fmt(h.Q / 1000, 1)} kW</dd><dt>Qozon</dt><dd>${h.boilerKw} kW</dd><dt>Radiator</dt><dd>${h.rads.length} dona, ${h.secs} seks.</dd><dt>Quvur</dt><dd>${fmt(h.pipeTotal || 0)} m</dd>` +
       (g ? `<dt>Bosim / qarshilik</dt><dd>${fmt(g.head)} / ${fmt(g.loss)} Pa</dd>` : "") + `</dl>` +
       (g ? `<p class="${g.ok ? "good" : "bad"}">${g.ok ? "Elektrsiz suv aylanadi." : "Elektrsiz aylanish yetmaydi."}</p>` : "") +
       `<h3>Tizim tarkibi</h3><ul class="comp">${schemeParts(p, h).map((x) => `<li>${x}</li>`).join("")}</ul>` +
-      `<table class="mini"><tr><th>Xona</th><th>W</th><th>Radiator</th></tr>${h.rooms.map((x) => `<tr><td>${x.r.name}</td><td>${fmt(x.Q)}</td><td>${x.units} × ${x.sec}</td></tr>`).join("")}</table>` + warningsHtml(h.warnings);
+      `<table class="mini"><tr><th>Xona</th><th>W</th><th>Radiator</th></tr>${h.rooms.map((x) => `<tr><td>${x.r.name}${x.manual ? " ✎" : ""}</td><td>${fmt(x.Q)}</td><td>${x.label}</td></tr>`).join("")}</table>` +
+      `<p class="hint">✎ belgili xonalarda radiatorlar qo'lda boshqariladi. Radiatorni bosib suring yoki o'lchamini o'zgartiring.</p>` + warningsHtml(h.warnings);
   }
   if (tab === "elec") {
     const e = res.elec;
     return `<h2>Elektr</h2>` + field("pElec", "Montaj usuli", sel("pElec", [["box", "Taqsimlash korobkasi bilan"], ["loop", "Korobkasiz (shleyf)"]], p.elecMode)) +
+      field("pMetal", "Sim metali", sel("pMetal", Object.entries(METALS).map(([k, v]) => [k, `${v.name} (${v.cable})`]), p.cableMetal || "cu")) +
       `<dl class="u"><dt>O'rnatilgan quvvat</dt><dd>${fmt(e.total / 1000, 1)} kW</dd><dt>Hisobiy quvvat</dt><dd>${fmt((e.demand || 0) / 1000, 1)} kW</dd><dt>Kirish avtomati</dt><dd>${e.inputA} A</dd>` +
       `<dt>Korobkalar</dt><dd>${e.boxes.length} dona</dd><dt>Kabel</dt><dd>${fmt(e.len)} m</dd><dt>${e.boxMode ? "Korobkasiz bo'lsa" : "Korobka bilan bo'lsa"}</dt><dd>${fmt(e.altLen)} m</dd></dl>` +
       (e.boxMode ? `<p class="hint">Xonaga korobka qo'ymasangiz, u avtomatik joylanadi (siyohrang). "Korobka" bilan o'zingiz joyini tanlaysiz.</p>` : "") +
-      `<table class="mini"><tr><th>Guruh</th><th>Avtomat</th><th>Kabel</th><th>m</th></tr>${e.groups.map((g) => `<tr><td>${g.name}${g.rcd ? " (UZO)" : ""}</td><td>${g.br} A</td><td>${g.mm}</td><td>${fmt(g.len)}</td></tr>`).join("")}</table>` + warningsHtml(e.warnings);
+      `<table class="mini"><tr><th>Guruh</th><th>Avtomat</th><th>Kesim, mm²</th><th>m</th><th>ΔU</th></tr>${e.groups.map((g) =>
+        `<tr><td>${g.name}${g.rcd ? " (UZO)" : ""}<br><small>${fmt(g.P)} W</small></td><td>${g.br} A</td>` +
+        `<td><select class="gsel" data-g="${g.name.replace(/"/g, "&quot;")}" aria-label="${g.name} sim kesimi"><option value="">avto ${g.need}</option>${SECTIONS.map((s) => `<option value="${s}" ${g.manual && g.mm === s ? "selected" : ""}>${s}</option>`).join("")}</select></td>` +
+        `<td>${fmt(g.len)}</td><td class="${g.dU > 4 ? "bad" : ""}">${fmt(g.dU, 1)}%</td></tr>`).join("")}</table>` + warningsHtml(e.warnings);
   }
   if (tab === "plumb") {
     const w = res.plumb;
@@ -218,6 +282,14 @@ $("tools").addEventListener("click", (e) => {
 $("side").addEventListener("change", (e) => {
   const { p, sel: s } = ctx, id = e.target.id, v = e.target.value, n = +v;
   ctx.commit();
+  if (e.target.dataset.g) {
+    p.groupCable = p.groupCable || {};
+    if (v) p.groupCable[e.target.dataset.g] = n; else delete p.groupCable[e.target.dataset.g];
+    return ctx.changed();
+  }
+  const it = s?.type === "item" && p.items.find((x) => x.id === s.id);
+  const rd = s?.type === "rad" && (p.radiators || []).find((x) => x.id === s.id);
+  const opt = (x) => (x === "" ? undefined : +x);
   const r = s?.type === "room" && p.rooms.find((x) => x.id === s.id);
   const o = s?.type === "open" && p.openings.find((x) => x.id === s.id);
   const set = {
@@ -227,6 +299,11 @@ $("side").addEventListener("change", (e) => {
     pName: () => (p.name = v), pH: () => (p.h = n), pT: () => (p.wallT = n), pMat: () => (p.wallMaterial = v),
     pIns: () => (p.ins = n), pOut: () => (p.tout = n), pReg: () => (p.regime = v),
     pFloors: () => { p.floors = n; view3dFramed = false; }, pSlab: () => (p.slab = n),
+    pRad: () => (p.radType = v), pPtype: () => (p.panelType = n), pPh: () => (p.panelH = n), pMetal: () => (p.cableMetal = v),
+    rKind: () => { rd.kind = v || undefined; rd.size = undefined; },
+    rSize: () => (rd.size = opt(v)), rPtype: () => (rd.ptype = opt(v)), rPh: () => (rd.ph = opt(v)),
+    iLt: () => { it.ltype = v; delete it.n; delete it.watts; if (!LIGHT_TYPES[v].wall) delete it.h; },
+    iN: () => (it.n = Math.max(1, n || 1)), iW: () => (it.watts = opt(v)), iH: () => (it.h = opt(v)),
     pCirc: () => (p.circ = v), pLoop: () => (p.loop = v), pFuel: () => (p.fuel = v),
     pPit: () => (p.pit = n), pElec: () => (p.elecMode = v),
   }[id];
@@ -236,6 +313,15 @@ $("side").addEventListener("change", (e) => {
 $("side").addEventListener("click", (e) => {
   if (e.target.id === "del") removeSel();
   if (e.target.id === "copyFloor") copyFloor();
+  if (e.target.id === "radReset") {
+    const rd = (ctx.p.radiators || []).find((x) => x.id === ctx.sel?.id);
+    if (!rd) return;
+    ctx.commit();
+    const room = ctx.p.rooms.find((x) => x.id === rd.room);
+    if (room) room.radManual = false;
+    ctx.p.radiators = ctx.p.radiators.filter((x) => x.room !== rd.room);
+    ctx.sel = null; ctx.changed();
+  }
   if (e.target.id === "rot") {
     const i = ctx.p.items.find((x) => x.id === ctx.sel.id);
     ctx.commit(); i.rot = !i.rot; ctx.changed();
@@ -246,9 +332,13 @@ $("o-floor").addEventListener("change", () => show3D());
 function removeSel() {
   const { p, sel: s } = ctx; if (!s) return;
   ctx.commit();
-  if (s.type === "room") { p.rooms = p.rooms.filter((r) => r.id !== s.id); p.openings = p.openings.filter((o) => o.room !== s.id); }
+  if (s.type === "room") {
+    p.rooms = p.rooms.filter((r) => r.id !== s.id); p.openings = p.openings.filter((o) => o.room !== s.id);
+    p.radiators = (p.radiators || []).filter((o) => o.room !== s.id);
+  }
   if (s.type === "open") p.openings = p.openings.filter((o) => o.id !== s.id);
   if (s.type === "item") p.items = p.items.filter((i) => i.id !== s.id);
+  if (s.type === "rad") p.radiators = (p.radiators || []).filter((i) => i.id !== s.id);
   ctx.sel = null; ctx.changed();
 }
 function history(from, to) {

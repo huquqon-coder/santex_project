@@ -73,6 +73,39 @@ export function radiator(sec) {
   return g;
 }
 
+// Bimetall seksiyali: yupqa yassi qanotlar, oq bo'yalgan
+export function radiatorBimetal(sec) {
+  const g = G(), pitch = 0.08, H = 0.56, w = sec * pitch, x0 = -w / 2 + pitch / 2;
+  const d = new THREE.Object3D();
+  const fin = new THREE.InstancedMesh(new THREE.BoxGeometry(0.072, H - 0.06, 0.075), M.white, sec);
+  const face = new THREE.InstancedMesh(new THREE.BoxGeometry(0.068, H - 0.16, 0.012), M.white, sec);
+  for (let i = 0; i < sec; i++) {
+    d.position.set(x0 + i * pitch, H / 2 + 0.13, 0); d.updateMatrix(); fin.setMatrixAt(i, d.matrix);
+    d.position.set(x0 + i * pitch, H / 2 + 0.13, 0.043); d.updateMatrix(); face.setMatrixAt(i, d.matrix);
+  }
+  fin.castShadow = true; g.add(fin, face);
+  for (const y of [0.13 + 0.04, 0.13 + H - 0.04]) {
+    C(g, 0.022, 0.02, M.chrome, w / 2 + 0.008, y, 0, "x");
+    C(g, 0.022, 0.02, M.chrome, -w / 2 - 0.008, y, 0, "x");
+  }
+  return g;
+}
+
+// Po'lat panel radiator: old yuzasi chiziqli, tepasida panjara
+export function radiatorPanel(len, h, type) {
+  const g = G(), d = { 11: 0.065, 22: 0.1, 33: 0.155 }[type] || 0.1, y0 = 0.13;
+  B(g, len, h, d, M.white, 0, y0, 0);
+  const n = Math.max(4, Math.round(len / 0.033));
+  const groove = new THREE.InstancedMesh(new THREE.BoxGeometry(0.006, h - 0.06, 0.004), M.plastic, n);
+  const o = new THREE.Object3D();
+  for (let i = 0; i < n; i++) { o.position.set(-len / 2 + (i + 0.5) * (len / n), y0 + h / 2, d / 2 + 0.002); o.updateMatrix(); groove.setMatrixAt(i, o.matrix); }
+  g.add(groove);
+  B(g, len - 0.02, 0.006, d - 0.01, M.grey, 0, y0 + h, 0);
+  for (const x of [-len / 2, len / 2]) B(g, 0.008, h, d, M.white, x, y0, 0);
+  C(g, 0.015, 0.03, M.chrome, len / 2 - 0.05, y0 + h - 0.02, d / 2 + 0.01, "z");
+  return g;
+}
+
 export function boilerSolid() {
   const g = G(), w = 0.85, H = 1.35, d = 0.55;
   B(g, w, H, d, M.orange, 0, 0, 0);
@@ -197,6 +230,44 @@ export function lamp(drop) {
   S(g, 0.05, M.lamp, 0, -drop - 0.16, 0);
   return g;
 }
+// Chiroq turlari. Koordinata boshi shiftda (bra uchun devorda)
+export function light(type, n, drop) {
+  const g = G();
+  if (type === "chandelier") {
+    C(g, 0.05, 0.03, M.brass, 0, -0.015, 0);
+    C(g, 0.006, drop, M.brass, 0, -drop / 2, 0);
+    S(g, 0.05, M.brass, 0, -drop, 0);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2, x = Math.cos(a) * 0.28, z = Math.sin(a) * 0.28;
+      line(g, [V3(0, -drop, 0), V3(x, -drop - 0.03, z), V3(x, -drop + 0.06, z)], 0.008, M.brass);
+      C(g, 0.06, 0.12, M.white, x, -drop + 0.12, z, "y", 0.035);
+      S(g, 0.03, M.lamp, x, -drop + 0.1, z);
+    }
+  } else if (type === "ledpanel") {
+    B(g, 0.6, 0.03, 0.6, M.white, 0, -0.03, 0);
+    B(g, 0.56, 0.006, 0.56, M.lamp, 0, -0.036, 0);
+  } else if (type === "ledspot" || type === "halogen") {
+    const k = Math.max(1, n), cols = Math.ceil(Math.sqrt(k)), gap = 0.6;
+    for (let i = 0; i < k; i++) {
+      const x = ((i % cols) - (cols - 1) / 2) * gap, z = (Math.floor(i / cols) - (Math.ceil(k / cols) - 1) / 2) * gap;
+      C(g, 0.045, 0.015, type === "halogen" ? M.chrome : M.white, x, -0.008, z);
+      C(g, 0.03, 0.006, M.lamp, x, -0.018, z);
+    }
+  } else if (type === "sconce") {
+    B(g, 0.12, 0.16, 0.03, M.brass, 0, -0.08, 0.015);
+    line(g, [V3(0, 0, 0.03), V3(0, 0, 0.18), V3(0, 0.05, 0.2)], 0.01, M.brass);
+    C(g, 0.08, 0.15, M.white, 0, 0.1, 0.2, "y", 0.05);
+    S(g, 0.035, M.lamp, 0, 0.08, 0.2);
+  } else if (type === "strip") {
+    B(g, Math.max(0.3, n), 0.012, 0.02, M.lamp, 0, -0.012, 0);
+  } else {
+    C(g, 0.03, 0.04, M.white, 0, -0.02, 0);
+    C(g, 0.004, drop, M.black, 0, -drop / 2, 0);
+    S(g, 0.055, M.lamp, 0, -drop - 0.05, 0);
+  }
+  return g;
+}
+
 export function panel() {
   const g = G(), w = 0.4, h = 0.5;
   B(g, w, h, 0.1, M.grey, 0, 0, 0.05);
