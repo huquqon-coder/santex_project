@@ -7,7 +7,7 @@ import { floorList, floorOf, fv, overlaps } from "./geometry.js";
 import { computeHeating, heatingBom, schemeParts } from "./heating.js";
 import { computeElectric, electricBom } from "./electric.js";
 import { computePlumbing, plumbingBom, pumped } from "./plumbing.js";
-import { renderReport } from "./report.js";
+import { EXTRA_GROUP, renderReport } from "./report.js";
 
 const $ = (id) => document.getElementById(id);
 const KEY = "santex-loyiha";
@@ -321,8 +321,24 @@ function renderSide() {
 
 function renderRep() {
   const { p, res } = ctx;
-  const rows = [...heatingBom(p, res.heat), ...electricBom(p, res.elec), ...plumbingBom(p, res.plumb)];
-  renderReport($("report"), rows, p.prices, (k, v) => { p.prices[k] = v; save(); });
+  const extras = (p.extras || []).map((x) => ({ g: x.g || EXTRA_GROUP, k: "x_" + x.id, name: x.name, spec: x.spec, unit: x.unit, qty: x.qty, labor: !!x.labor, extra: x.id }));
+  const rows = [...heatingBom(p, res.heat), ...electricBom(p, res.elec), ...plumbingBom(p, res.plumb), ...extras];
+  renderReport($("report"), rows, p.prices, (k, v) => { p.prices[k] = v; save(); }, {
+    onAdd: (x, price) => {
+      ctx.commit();
+      const id = uid();
+      p.extras = [...(p.extras || []), { id, ...x }];
+      p.prices["x_" + id] = price;
+      ctx.changed();
+    },
+    onDel: (id) => {
+      ctx.commit();
+      p.extras = (p.extras || []).filter((x) => x.id !== id);
+      delete p.prices["x_" + id];
+      ctx.changed();
+    },
+    onQty: (id, v) => { const x = (p.extras || []).find((q) => q.id === id); if (x) { x.qty = v; save(); } },
+  });
 }
 
 let view3d = null, view3dFramed = false;

@@ -112,6 +112,7 @@ export function emptyProject() {
     openings: [],
     items: [],
     prices: {},
+    extras: [],        // hisobga qo'lda qo'shilgan mahsulot va ishlar: { id, g, name, spec, unit, qty, labor }
   };
 }
 

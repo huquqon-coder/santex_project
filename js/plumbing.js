@@ -1,19 +1,22 @@
 // Santexnika: suv manbai (shahar suvi yoki bochka), sovuq va issiq suv, kanalizatsiya nishabligi va ventilyatsiyasi.
 import { TANK_PLACES, tankBase } from "./model.js";
-import { floorOf } from "./geometry.js";
+import { floorOf, fv, roomAt } from "./geometry.js";
 import { multiFloor, segLen } from "./route.js";
+import { crossings, treeFittings } from "./fittings.js";
 
-// Hisobiy sarf, l/s; need: kerakli bosim, m suv ustuni; tap: kran balandligi poldan, m
+// Hisobiy sarf, l/s; need: kerakli bosim, m suv ustuni; tap: kran balandligi poldan, m; conn: devordan ulanish balandligi, m
 export const FIX = {
-  sink: { name: "Rakovina", cold: 0.1, hot: 0.1, drain: 50, need: 2, tap: 1.0 },
-  toilet: { name: "Unitaz", cold: 0.1, hot: 0, drain: 110, need: 1, tap: 0.2 },
-  bathtub: { name: "Vanna", cold: 0.15, hot: 0.15, drain: 50, need: 2, tap: 0.8 },
-  shower: { name: "Dush", cold: 0.12, hot: 0.12, drain: 50, need: 3, tap: 2.0 },
-  washer: { name: "Kir yuvish mashinasi", cold: 0.15, hot: 0, drain: 50, need: 5, tap: 0.8 },
+  sink: { name: "Rakovina", cold: 0.1, hot: 0.1, drain: 50, need: 2, tap: 1.0, conn: 0.55 },
+  toilet: { name: "Unitaz", cold: 0.1, hot: 0, drain: 110, need: 1, tap: 0.2, conn: 0.2 },
+  bathtub: { name: "Vanna", cold: 0.15, hot: 0.15, drain: 50, need: 2, tap: 0.8, conn: 0.8 },
+  shower: { name: "Dush", cold: 0.12, hot: 0.12, drain: 50, need: 3, tap: 2.0, conn: 1.1 },
+  washer: { name: "Kir yuvish mashinasi", cold: 0.15, hot: 0, drain: 50, need: 5, tap: 0.8, conn: 0.8 },
 };
 // PPR: sovuq suvga PN20, issiq suvga armaturali PN25; id ichki diametr, mm
 const PPR = [{ dn: 20, id: 13.2 }, { dn: 25, id: 16.6 }, { dn: 32, id: 21.2 }, { dn: 40, id: 26.6 }];
 const SLOPE = { 50: 0.03, 110: 0.02 };
+// PPR diametriga mos rezba
+const THREAD = { 20: '1/2"', 25: '3/4"', 32: '1"', 40: '1 1/4"' };
 const START_DEPTH = 0.1; // sifon chiqishi poldan pastda, m
 const G = { door: 25, wall: 3, outside: 2 };
 
@@ -66,6 +69,7 @@ export function computePlumbing(p) {
     const t = multiFloor(p, source, targets, G, cache, () => 1);
     if (!t.ok) warnings.push("Sovuq suv yo'li topilmadi.");
     out.cold = t.segs.map((s) => ({ ...s, dn: pipeFor(s.load).dn, len: segLen(s) }));
+    out.coldRoots = [{ x: source.x, y: source.y, floor: floorOf(source) }, ...t.risers.map((q) => ({ x: q.x, y: q.y, floor: q.to }))];
     for (const q of t.risers) { q.dn = pipeFor(q.load).dn; out.risers.push({ ...q, kind: "cold" }); add(out.coldLen, q.dn, q.len); }
     const main = pipeFor(fx.reduce((a, f) => a + FIX[f.kind].cold + FIX[f.kind].hot, 0));
     if (tank && tank.place !== "ground") add(out.coldLen, main.dn, tankBase(tank, p) / 100 + 0.5);
@@ -90,6 +94,7 @@ export function computePlumbing(p) {
   else if (heater && hotFx.length) {
     const t = multiFloor(p, heater, hotFx.map((f) => ({ x: f.x, y: f.y, load: FIX[f.kind].hot, floor: floorOf(f) })), G, cache);
     out.hot = t.segs.map((s) => ({ ...s, dn: pipeFor(s.load).dn, len: segLen(s) }));
+    out.hotRoots = [{ x: heater.x, y: heater.y, floor: floorOf(heater) }, ...t.risers.map((q) => ({ x: q.x, y: q.y, floor: q.to }))];
     for (const q of t.risers) { q.dn = pipeFor(q.load).dn; out.risers.push({ ...q, kind: "hot" }); add(out.hotLen, q.dn, q.len); }
     // Issiq suv uzunligi 10 m dan oshsa, kran ochilganda sovuq suv uzoq oqadi
     const far = Math.max(0, ...hotFx.map((f) => Math.hypot(f.x - heater.x, f.y - heater.y) / 100));
@@ -97,6 +102,13 @@ export function computePlumbing(p) {
   }
   for (const s of out.cold) add(out.coldLen, s.dn, s.len);
   for (const s of out.hot) add(out.hotLen, s.dn, s.len);
+  // Poldagi quvurdan jihoz ulanishigacha devordagi tik bo'lak, Ø20
+  for (const f of fx) {
+    const v = Math.abs(FIX[f.kind].conn - 0.3) + 0.2;
+    if (FIX[f.kind].cold) add(out.coldLen, 20, v);
+    if (FIX[f.kind].hot && heater) add(out.hotLen, 20, v);
+  }
+  if (heater) { add(out.coldLen, 20, 1); add(out.hotLen, 20, 1); }
 
   // Kanalizatsiya: nishablik bilan chiqishdagi chuqurlik
   if (!outlet) warnings.push("Kanalizatsiya chiqishi qo'yilmagan.");
@@ -141,8 +153,11 @@ export function computePlumbing(p) {
     }
     out.fit.sewer = { 50: fittings(out.sewer.filter((s) => s.dn === 50)), 110: fittings(out.sewer.filter((s) => s.dn === 110)) };
   }
-  out.fit.cold = fittings([...out.cold, ...out.fill]);
-  out.fit.hot = fittings(out.hot);
+  out.wfit = {
+    cold: treeFittings([...out.cold, ...out.fill], [...(out.coldRoots || []), ...(inlet ? [{ x: inlet.x, y: inlet.y, floor: floorOf(inlet) }] : [])]),
+    hot: treeFittings(out.hot, out.hotRoots || []),
+    cross: crossings(out.cold, out.hot),
+  };
   return out;
 }
 
@@ -181,12 +196,42 @@ export function plumbingBom(p, w) {
   for (const dn of Object.keys(w.coldLen).sort((a, b) => a - b)) push("pprc" + dn, "PPR PN20 quvur, sovuq suv", `Ø${dn}`, "m", w.coldLen[dn] * 1.1);
   for (const dn of Object.keys(w.hotLen).sort((a, b) => a - b)) push("pprh" + dn, "PPR PN25 armaturali quvur, issiq suv", `Ø${dn}`, "m", w.hotLen[dn] * 1.1);
   const waterL = sum(w.coldLen) + sum(w.hotLen);
-  const conn = live.reduce((a, i) => a + (FIX[i.kind] ? (FIX[i.kind].cold ? 1 : 0) + (FIX[i.kind].hot ? 1 : 0) : 0), 0) + (n("heater") ? 2 : 0);
-  push("pprbend", "PPR tirsak 90°", "Ø20–32", "dona", (w.fit.cold?.bends || 0) + (w.fit.hot?.bends || 0) + conn);
-  push("pprtee", "PPR troynik", "Ø20–32", "dona", (w.fit.cold?.tees || 0) + (w.fit.hot?.tees || 0));
-  push("pprcoup", "PPR mufta", "Ø20–32", "dona", waterL / 4);
-  push("pprclip", "PPR quvur qisqichi", "Ø20–32", "dona", waterL / 0.6);
-  push("wallplate", "Devor rozetkasi (vodorozetka), rezbali", "Ø20 × 1/2\"", "dona", conn);
+  const fxc = live.filter((i) => FIX[i.kind]);
+  const conn = fxc.reduce((a, i) => a + (FIX[i.kind].cold ? 1 : 0) + (FIX[i.kind].hot && n("heater") ? 1 : 0), 0);
+  // Fitinglar diametr bo'yicha alohida qator bo'ladi
+  const F = "Santexnika: PPR fitinglar";
+  const fit = (k, name, spec, qty) => qty > 0 && rows.push({ g: F, k, name, spec, unit: "dona", qty: Math.ceil(qty) });
+  const both = (key) => {
+    const o = {};
+    for (const src of [w.wfit?.cold?.[key], w.wfit?.hot?.[key]]) for (const [k, v] of Object.entries(src || {})) o[k] = (o[k] || 0) + v;
+    return o;
+  };
+  const byDn = (o) => Object.entries(o).sort((a, b) => parseFloat(a[0].replace("Ø", "")) - parseFloat(b[0].replace("Ø", "")));
+  // Har bir jihoz ulanishida devorga ko'tarilish uchun bitta Ø20 otvod
+  const bends = both("bend"); bends[20] = (bends[20] || 0) + conn;
+  for (const [dn, q] of byDn(bends)) fit("pbend" + dn, "Otvod (tirsak) 90°", `Ø${dn}`, q);
+  for (const [dn, q] of byDn(both("half"))) fit("phalf" + dn, "Polotvod (yarim tirsak) 45°", `Ø${dn}`, q);
+  for (const [s, q] of byDn(both("tee"))) fit("ptee" + s, s.includes("×") ? "Troynik, o'tuvchi (perexodnoy)" : "Troynik, teng", s, q);
+  for (const [s, q] of byDn(both("red"))) fit("pred" + s, "O'tish muftasi (perexodnik)", s, q);
+  for (const [dn, q] of byDn(w.wfit?.cross || {})) fit("pcross" + dn, "Obvod (aylanib o'tish), quvurlar kesishgan joyda", `Ø${dn}`, q);
+  const coup = {};
+  for (const o of [w.coldLen, w.hotLen]) for (const [dn, l] of Object.entries(o)) coup[dn] = (coup[dn] || 0) + l;
+  for (const [dn, l] of byDn(coup)) {
+    fit("pcoup" + dn, "Mufta (ulash)", `Ø${dn}`, Math.floor(l / 4) + 1);
+    fit("pclip" + dn, "Quvur qisqichi (klips)", `Ø${dn}`, l / 0.6);
+  }
+  fit("pplate", "Ushastik adapter (vodorozetka), ichki rezba", "Ø20 × 1/2\"", conn);
+  // Rezbali jihozlar (kran, filtr, hisoblagich, klapan): har ikki uchiga tashqi rezbali adapter
+  const main = w.mainDn || 25, th = THREAD[main] || '1"';
+  const inline = (live.some((i) => i.kind === "waterin") ? (w.tank ? 3 : 4) : 0) + (w.tank ? 2 : 0);
+  fit("padapt" + main, "Adapter, tashqi rezbali (kombinatsiyalangan mufta)", `Ø${main} × ${th}`, inline * 2);
+  if (w.fill.length) fit("padaptf", "Adapter, tashqi rezbali, qalqovich klapanga", "Ø25 × 1/2\"", 1);
+  if (pumped(w.tank)) fit("pamer" + main, "Amerikanka (ajraladigan mufta), nasosga", `Ø${main} × ${th}`, 2);
+  if (n("heater")) fit("pamerh", "Amerikanka, suv isitkichga", "Ø20 × 1/2\"", n("heater") * 2);
+  const wet = new Set(fxc.map((i) => roomAt(fv(p, floorOf(i)), i.x, i.y)?.id || "-")).size;
+  fit("pball", "PPR sharli kran, xona tarmog'iga", "Ø20–25", wet + (n("heater") && conn > wet ? wet : 0));
+  fit("pcap", "Zaglushka, bosim sinovi uchun", "Ø20", conn);
+  fit("psleeve", "Devor va yopmadan o'tish gilzasi", "Ø32–40", (w.risers || []).filter((q) => q.kind !== "sewer").length + 2);
   push("pprins", "Issiq suv quvuri izolyatsiyasi", "Ø20–25", "m", sum(w.hotLen) * 1.1);
 
   // Jihozlarni ulash armaturasi

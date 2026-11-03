@@ -74,6 +74,14 @@ input:not([type=checkbox]), select { font: 14px var(--body); padding: 5px 7px; b
 .rep td:nth-child(2), .rep th:nth-child(2) { text-align: left; color: var(--muted); }
 .rep td.grp { font-weight: 600; text-align: left; padding: 14px 0 4px; color: var(--fg); }
 .rep input { width: 120px; text-align: right; font-family: var(--mono); }
+.rep input.qty { width: 80px; }
+.xdel { font: 600 14px var(--body); color: var(--bad); background: transparent; border: 1px solid var(--line); cursor: pointer; padding: 0 6px; margin-left: 4px; }
+.addrow { margin-top: 22px; padding-top: 12px; border-top: 1px solid var(--fg); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 12px; align-items: end; max-width: 820px; }
+.addrow h3 { grid-column: 1 / -1; }
+.addrow label { display: grid; gap: 3px; font-size: 12.5px; font-weight: 500; min-width: 0; }
+.addrow label.wide { grid-column: span 2; }
+.addrow label.chk { display: flex; font-weight: 400; }
+@media (max-width: 700px) { .addrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-block: 1px solid var(--line); }
 .kpi { padding: 10px 14px 10px 0; } .kpi + .kpi { padding-left: 14px; border-left: 1px solid var(--line); }
 .kpi span { display: block; font-size: 12.5px; color: var(--muted); }
@@ -152,7 +160,8 @@ input:not([type=checkbox]), select { font: 14px var(--body); padding: 5px 7px; b
   aside { overflow: visible; }
 }
 @media print {
-  .top, #tools, aside, .rephead button { display: none !important; }
+  .top, #tools, aside, .rephead button, .addrow, .xdel { display: none !important; }
+  .rep input { border: 0; background: none; }
   body { background: #fff; color: #000; }
   .canvas { border: 0; overflow: visible; }
   #reportWrap { position: static; }

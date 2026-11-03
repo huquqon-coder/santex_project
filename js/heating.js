@@ -203,10 +203,20 @@ export function computeHeating(p) {
   out.risers = net.risers;
   if (net.risers.some((q) => q.auto)) warnings.push("Stoyak avtomatik joylandi. Reja bo'limida o'zingiz qo'yishingiz mumkin.");
 
+  // Eng uzun halqa bo'yicha taxminiy qarshilik
+  const longest = Math.max(0, ...rads.map((r) => Math.hypot(r.x - boiler.x, r.y - boiler.y) / 100)) * 2.6;
+  // O'zi aylanishda bosim: issiq va sovuq suv og'irligi farqi, qozon chuquriga bog'liq
+  const H = 0.42 + p.pit / 100 - 0.55;
+  const head = 9.81 * H * (RHO_55 - RHO_80) + 80;
+  // Nasossiz: har metrga ruxsat etilgan qarshilik shunday tanlanadiki, eng uzun halqa bosimning 90 % idan oshmasin
+  const Rmax = Math.max(0.5, (head * 0.9 - 15) / Math.max(1, longest * 1.4));
   const size = (w, grav) => {
-    const g = grav ? w / (1.163 * 25) : flow(w);
-    const vmax = grav ? 0.07 : 0.7;
-    return PIPES.find((d) => (g / 3.6e6) / ((Math.PI / 4) * (d.id / 1000) ** 2) <= vmax) || PIPES[PIPES.length - 1];
+    if (grav) {
+      const g = w / (1.163 * 25);
+      return PIPES.find((d) => d.dn >= 25 && fric(g, d.id) <= Rmax) || PIPES[PIPES.length - 1];
+    }
+    const g = flow(w);
+    return PIPES.find((d) => (g / 3.6e6) / ((Math.PI / 4) * (d.id / 1000) ** 2) <= 0.7) || PIPES[PIPES.length - 1];
   };
   const sumL = {};
   out.segs = net.segs.map((s) => {
@@ -226,16 +236,12 @@ export function computeHeating(p) {
   out.steelPipe = STEEL.find((d) => d.id >= mainPipe.id) || STEEL[STEEL.length - 1];
   if (sumL[mainPipe.dn]) sumL[mainPipe.dn] = Math.max(0, sumL[mainPipe.dn] - STEEL_M);
 
-  // Eng uzun halqa bo'yicha taxminiy qarshilik
-  const longest = Math.max(0, ...rads.map((r) => Math.hypot(r.x - boiler.x, r.y - boiler.y) / 100)) * 2.6;
   const volPipes = out.segs.reduce((a, s) => a + (Math.PI / 4) * (s.id / 100) ** 2 * s.len * 2 * 10, 0);
   out.volume = rads.reduce((a, x) => a + x.litre, 0) + volPipes + 40 + out.ufhPipe * 0.113;
   out.tank = Math.ceil((out.volume * 0.06) / 10) * 10;
   out.vessel = [8, 12, 18, 24, 35, 50, 80].find((v) => v >= (out.volume * 0.04) / (1 - 1.5 / 3)) || 100;
 
   if (grav) {
-    const H = 0.42 + p.pit / 100 - 0.55;
-    const head = 9.81 * H * (RHO_55 - RHO_80) + 80;
     const G = Q / (1.163 * 25);
     const main = size(Q, true);
     const loss = fric(G, main.id) * longest * 1.4 + 15;
