@@ -98,7 +98,8 @@ export function emptyProject() {
     pit: 100,
     sewerVent: "roof", // roof: stoyak tomdan chiqadi, valve: havo klapani
     elecMode: "box",
-    cableMetal: "cu",  // cu: mis, al: alyuminiy
+    cableMetal: "al",  // cu: mis, al: alyuminiy
+    boxCable: { feed: "2×10", socket: "2×4", power: "2×6", light: "2×2.5" }, // korobkali montajdagi kabellar
     groupCable: {},    // guruh nomi bo'yicha qo'lda tanlangan kesim, mm²
     radScheme: "tree", // tree: troynikli, collector: kollektordan nurli
     ufhRegime: "45/35",

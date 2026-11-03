@@ -116,6 +116,7 @@ input:not([type=checkbox]), select { font: 14px var(--body); padding: 5px 7px; b
 #plan .ld { font-family: var(--mono); font-weight: 500; fill: var(--accent); text-anchor: middle; pointer-events: none; }
 #plan .pb { stroke: var(--elec); stroke-width: 1.5; stroke-dasharray: 8 6; }
 #plan .jb { fill: #7a4fa3; stroke: var(--panel); stroke-width: 2; cursor: pointer; }
+#plan .el.kb { fill: #7a4fa3; font-size: 18px; }
 #plan .jb.s { stroke: var(--accent); stroke-width: 5; }
 #plan .pb.sw { stroke: var(--hot); stroke-dasharray: 3 5; }
 #plan .pb.lt { stroke: var(--elec); stroke-dasharray: none; }

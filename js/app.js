@@ -1,7 +1,7 @@
 import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, TANK_PLACES, TANK_VOLUMES, WALL_MATERIALS, emptyProject, mountH, normalize, sampleProject, tankBase, uid } from "./model.js";
 import { PANEL_HEIGHTS, PANEL_TYPES, RAD_KINDS } from "./radiators.js";
 import { COVERS, STEPS } from "./ufh.js";
-import { METALS, SECTIONS, busCount, lightOf, watts } from "./electric.js";
+import { CABLE_SPECS, METALS, SECTIONS, busCount, lightOf, watts } from "./electric.js";
 import { Editor } from "./editor.js";
 import { floorList, floorOf, fv, overlaps } from "./geometry.js";
 import { computeHeating, heatingBom, schemeParts } from "./heating.js";
@@ -147,7 +147,7 @@ const fmt = (n, d = 0) => n.toLocaleString("ru-RU", { minimumFractionDigits: d, 
 // Korobka ichidagi ulanish sxemasi: yuqorida klemma guruhlari, pastda korobkadan chiqadigan kabellar
 const BUS_COLOR = { L: "#8a4b22", N: "#1c69ba", PE: "#3d9a3d" };
 function boxHtml(b) {
-  const n = busCount(b), buses = ["L", "N", "PE", ...Object.keys(n).filter((k) => !BUS_COLOR[k]).sort()];
+  const n = busCount(b), buses = ["L", "N", ...(n.PE ? ["PE"] : []), ...Object.keys(n).filter((k) => !BUS_COLOR[k]).sort()];
   const step = 58, W = 56 + b.conns.length * step, top = 14, yDev = top + buses.length * 16 + 20;
   let svg = buses.map((k, i) => `<line class="bus" x1="40" x2="${W - 4}" y1="${top + i * 16}" y2="${top + i * 16}" stroke="${BUS_COLOR[k] || "#c0392b"}"/><text x="2" y="${top + i * 16 + 4}">${k}</text>`).join("");
   b.conns.forEach((c, j) => {
@@ -163,7 +163,7 @@ function boxHtml(b) {
   return `<h3>${b.title}</h3><svg class="bx" viewBox="0 0 ${W} ${yDev + 44}" role="img" aria-label="Korobka ulanish sxemasi">${svg}</svg>` +
     `<table class="mini"><tr><th>Belgi</th><th>Nima</th><th>Kabel</th><th>Simlar</th></tr>${b.conns.map((c) =>
       `<tr><td>${c.label}</td><td style="text-align:left">${c.name}</td><td>${c.spec.replace(".", ",")}</td><td>${c.wires.join(", ")}</td></tr>`).join("")}</table>` +
-    `<p class="hint">Klemmalar: ${wago || "yo'q"}. L faza (jigarrang), N nol (ko'k), PE yerga ulash (sariq-yashil). V bilan boshlanganlar viklyuchatel o'chirib-yoqadigan faza: viklyuchatel faqat fazani uzadi, nol va PE chiroqqa to'g'ridan boradi.</p>`;
+    `<p class="hint">Klemmalar: ${wago || "yo'q"}. L faza (jigarrang), N nol (ko'k)${n.PE ? ", PE yerga ulash (sariq-yashil)" : ""}. V bilan boshlanganlar viklyuchatel o'chirib-yoqadigan faza: viklyuchatel faqat fazani uzadi, nol chiroqqa to'g'ridan boradi.${n.PE ? "" : " Ikki tomirli kabelda yerga ulash simi yo'q."}</p>`;
 }
 
 function selectionHtml() {
@@ -295,12 +295,17 @@ function resultHtml() {
       field("pMetal", "Sim metali", sel("pMetal", Object.entries(METALS).map(([k, v]) => [k, `${v.name} (${v.cable})`]), p.cableMetal || "cu")) +
       `<dl class="u"><dt>O'rnatilgan quvvat</dt><dd>${fmt(e.total / 1000, 1)} kW</dd><dt>Hisobiy quvvat</dt><dd>${fmt((e.demand || 0) / 1000, 1)} kW</dd><dt>Kirish avtomati</dt><dd>${e.inputA} A</dd>` +
       `<dt>Korobkalar</dt><dd>${e.boxes.length} dona</dd><dt>Kabel</dt><dd>${fmt(e.len)} m</dd><dt>${e.boxMode ? "Korobkasiz bo'lsa" : "Korobka bilan bo'lsa"}</dt><dd>${fmt(e.altLen)} m</dd></dl>` +
-      (e.boxMode ? `<p class="hint">Xonaga korobka qo'ymasangiz, u avtomatik joylanadi (siyohrang). "Korobka" bilan o'zingiz joyini tanlaysiz. Korobkani bossangiz, ichidagi ulanish sxemasi chiqadi.</p>` : "") +
+      (e.boxMode ? `<h3>Kabellar</h3><div class="row">` +
+        [["cFeed", "feed", "Shchitdan korobkaga"], ["cLight", "light", "Chiroq va viklyuchatel"], ["cSock", "socket", "Oddiy rozetka"], ["cPow", "power", "Quvvatli rozetka"]]
+          .map(([id, k, n]) => field(id, n, sel(id, CABLE_SPECS.map((s) => [s, s.replace(".", ",") + " mm²"]), e.cab[k]))).join("") + `</div>` +
+        `<p class="hint">Har bir xona alohida guruh: shchitdan xona korobkasiga bitta kabel keladi, korobkadan har bir nuqtaga alohida kabel ketadi. Korobkani qo'ymasangiz, u avtomatik joylanadi (siyohrang, K belgili). "Korobka" bilan o'zingiz joyini tanlaysiz. Korobkani bossangiz, ichidagi ulanish sxemasi chiqadi.</p>` : "") +
       `<p class="hint">Rejada: qizil uzuq chiziq korobkadan viklyuchatelga, sariq korobkadan chiroqqa, kulrang egri chiziq viklyuchatel qaysi chiroqni yoqishini ko'rsatadi. Kabel ustida tomirlar soni va kesimi yozilgan.</p>` +
-      `<table class="mini"><tr><th>Guruh</th><th>Avtomat</th><th>Kesim, mm²</th><th>m</th><th>ΔU</th></tr>${e.groups.map((g) =>
+      `<table class="mini"><tr><th>${e.boxMode ? "Xona" : "Guruh"}</th><th>Avtomat</th><th>${e.boxMode ? "Kirish kabeli" : "Kesim, mm²"}</th><th>m</th><th>ΔU</th></tr>${e.groups.map((g) =>
         `<tr><td>${g.name}${g.rcd ? " (UZO)" : ""}<br><small>${fmt(g.P)} W</small></td><td>${g.br} A</td>` +
-        `<td><select class="gsel" data-g="${g.name.replace(/"/g, "&quot;")}" aria-label="${g.name} sim kesimi"><option value="">avto ${g.need}</option>${SECTIONS.map((s) => `<option value="${s}" ${g.manual && g.mm === s ? "selected" : ""}>${s}</option>`).join("")}</select></td>` +
-        `<td>${fmt(g.len)}</td><td class="${g.dU > 4 ? "bad" : ""}">${fmt(g.dU, 1)}%</td></tr>`).join("")}</table>` + warningsHtml(e.warnings);
+        (e.boxMode ? `<td>${g.feed.replace(".", ",")}</td>`
+          : `<td><select class="gsel" data-g="${g.name.replace(/"/g, "&quot;")}" aria-label="${g.name} sim kesimi"><option value="">avto ${g.need}</option>${SECTIONS.map((s) => `<option value="${s}" ${g.manual && g.mm === s ? "selected" : ""}>${s}</option>`).join("")}</select></td>`) +
+        `<td>${fmt(g.len)}</td><td class="${g.dU > 4 ? "bad" : ""}">${fmt(g.dU, 1)}%</td></tr>`).join("")}</table>` +
+      (e.boxMode ? `<p class="hint">Avtomat xonadagi eng ingichka kabelni ham himoya qiladigan qilib tanlanadi. ΔU shchitdan korobkagacha.</p>` : "") + warningsHtml(e.warnings);
   }
   if (tab === "plumb") {
     const w = res.plumb;
@@ -398,6 +403,8 @@ $("side").addEventListener("change", (e) => {
     pPit: () => (p.pit = n), pElec: () => (p.elecMode = v), pVent: () => (p.sewerVent = v),
     iSw: () => (it.sw = v || undefined), iVol: () => (it.vol = n), iPlace: () => (it.place = v), iStand: () => (it.stand = n),
     iPump: () => (it.pump = e.target.checked),
+    cFeed: () => (p.boxCable = { ...(p.boxCable || {}), feed: v }), cLight: () => (p.boxCable = { ...(p.boxCable || {}), light: v }),
+    cSock: () => (p.boxCable = { ...(p.boxCable || {}), socket: v }), cPow: () => (p.boxCable = { ...(p.boxCable || {}), power: v }),
   }[id];
   if (!set) return ctx.discardCommit();
   set(); ctx.changed();

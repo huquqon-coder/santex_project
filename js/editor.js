@@ -384,7 +384,8 @@ export class Editor {
     for (const b of e.boxes) {
       if (!onFloor(b, f)) continue;
       const s = sel?.type === "box" && sel.id === b.key;
-      if (!b.manual) o.push(`<rect data-t="box" data-id="${esc(b.key)}" class="jb ${s ? "s" : ""}" x="${b.x - 11}" y="${b.y - 11}" width="22" height="22"><title>${esc(b.title)}. Ulanish sxemasi uchun bosing.</title></rect>`);
+      if (!b.manual) o.push(`<rect data-t="box" data-id="${esc(b.key)}" class="jb ${s ? "s" : ""}" x="${b.x - 14}" y="${b.y - 14}" width="28" height="28"><title>${esc(b.title)}. Ulanish sxemasi uchun bosing.</title></rect>`);
+      if (b.label) o.push(`<text class="el kb" x="${b.x + 18}" y="${b.y + 24}">${esc(b.label)}</text>`);
     }
     for (const i of this.ctx.p.items.filter((q) => onFloor(q, f) && e.labels?.has(q.id))) {
       o.push(`<text class="el" x="${i.x + 14}" y="${i.y - 12}">${e.labels.get(i.id)}</text>`);
