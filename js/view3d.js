@@ -1,5 +1,6 @@
 // 3D ko'rinish. Ma'lumot rejadan olinadi, o'lchamlar metrga o'tkaziladi.
-import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, mountH } from "./model.js";
+import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, TANK_DIAM, mountH, tankBase } from "./model.js";
+import { pumped } from "./plumbing.js";
 import { bounds, floorList, floorOf, fv, nearestWall, openingRect, roomAt, sideInfo, wallBoxes } from "./geometry.js";
 import * as P from "./models3d.js";
 
@@ -263,6 +264,14 @@ export class View3D {
       for (const s of res.plumb.cold.filter(here)) this.run(s.pts, 0.3, 0.012, this.mat.blue, -7);
       for (const s of res.plumb.hot.filter(here)) this.run(s.pts, 0.3, 0.012, this.mat.hot, 7);
       for (const s of res.plumb.sewer.filter(here)) this.run(s.pts, 0.05, s.dn === 110 ? 0.055 : 0.03, this.mat.sewer);
+      for (const s of (res.plumb.fill || []).filter(here)) this.run(s.pts, 0.25, 0.012, this.mat.blue);
+      for (const q of (res.plumb.cleanouts || []).filter(here)) this.place(P.cleanout(), m(q.x), 0.05, m(q.y));
+      const v = res.plumb.vent;
+      if (v && here(v)) {
+        const vx = m(v.x + 22), vz = m(v.y + 22), top = 0.05 + v.len - (v.roof ? 0 : 0.3);
+        this.tube(new THREE.Vector3(vx, 0.05, vz), new THREE.Vector3(vx, top, vz), 0.055, this.mat.sewer);
+        this.place(P.ventCap(!v.roof), vx, top, vz);
+      }
     }
   }
   items(p, res, opt, wallH, f, step) {
@@ -297,6 +306,14 @@ export class View3D {
         case "washer": this.place(P.washer(), x, 0, z, w.ix, w.iz); break;
         case "waterin": this.place(P.waterIn(), x, 0, z); break;
         case "sewerout": this.place(P.sewerOut(), x, 0, z); break;
+        case "tank": {
+          const d = (TANK_DIAM[i.vol] || 80) / 100, h = Math.max(0.6, (i.vol || 500) / 1000 / (Math.PI * d * d / 4)), base = m(tankBase(i, p));
+          this.place(P.waterTank(d, h, i.place === "stand" ? base : 0), x, base, z);
+          // Bochkadan pastga tushuvchi quvur va nasos stansiyasi
+          if (base > 0.3) this.tube(new THREE.Vector3(x + d / 2 + 0.08, base + 0.08, z), new THREE.Vector3(x + d / 2 + 0.08, 0.3, z), 0.016, this.mat.blue);
+          if (pumped(i)) this.place(P.pumpStation(), x + d / 2 + 0.5, 0, z);
+          break;
+        }
       }
     }
   }
@@ -378,6 +395,11 @@ export class View3D {
       this.place(P.safetyGroup(), sx - 0.18, bTop + 0.18, sz);
       this.tube(V(sx - 0.12, bTop + 0.18, sz), V(sx, bTop + 0.18, sz), 0.012, this.mat.hot);
     }
+    // Termomanometr chiqishda, termometr qaytishda, to'kish krani pastda, uch yo'lli klapan qozon qaytishida
+    this.place(P.gauge(0.045), sx, Math.min(bTop + 0.6, yS - 0.1), sz, w.ix, w.iz);
+    this.place(P.gauge(0.035), nx, mid + 0.3, nz, w.ix, w.iz);
+    this.place(P.ballValve(), rx + 0.2, yLow - 0.06, rz);
+    if (solid && p.circ === "pump") this.place(P.threeWay(), rx + 0.45, yLow, rz);
     if (solid) {
       const f = 0.09, fy = y0 + 1.65, cz = bz - w.iz * 1.1, cx = bx - w.ix * 1.1;
       this.tube(V(bx, fy, bz), V(cx, fy, cz), f, P.M.steel);

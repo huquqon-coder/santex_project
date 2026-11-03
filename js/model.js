@@ -36,7 +36,18 @@ export const ITEM_KINDS = {
   shower: { name: "Dush", group: "plumb", w: 90, d: 90, color: "#7f97a3" },
   washer: { name: "Kir yuvish mashinasi", group: "plumb", w: 60, d: 60, color: "#7f97a3" },
   heater: { name: "Suv isitkich", group: "plumb", w: 45, d: 45, color: "#b4553f", round: true },
+  tank: { name: "Suv bochkasi", group: "plumb", w: 90, d: 90, color: "#2b7fa8", round: true },
 };
+
+// Suv bochkasi: hajmi va joyi. Balandlik bochka tubining yerdan balandligi, sm
+export const TANK_VOLUMES = [200, 300, 500, 1000, 1500, 2000];
+export const TANK_PLACES = {
+  ground: { name: "Yerda" },
+  stand: { name: "Ustunli tagkursida" },
+  roof: { name: "Tomda yoki cherdakda" },
+};
+export const TANK_DIAM = { 200: 60, 300: 70, 500: 80, 1000: 110, 1500: 120, 2000: 135 };
+export const tankBase = (t, p) => (t.place === "stand" ? t.stand ?? 300 : t.place === "roof" ? (p.floors || 1) * (p.h + (p.slab ?? 30)) + 20 : 0);
 
 // Chiroq turlari: quvvati bitta chiroq uchun, n bitta nuqtadagi soni
 export const LIGHT_TYPES = {
@@ -65,6 +76,7 @@ export function opening(kind, roomId, side, off, extra = {}) {
 export function item(kind, x, y) {
   const i = { id: uid(), kind, x, y };
   if (kind === "light") i.ltype = "ledpanel";
+  if (kind === "tank") Object.assign(i, { vol: 500, place: "stand", pump: false });
   return i;
 }
 
@@ -84,6 +96,7 @@ export function emptyProject() {
     loop: "closed",   // open: ochiq bak, closed: yopiq membranali bak
     fuel: "gas",      // gas yoki solid
     pit: 100,
+    sewerVent: "roof", // roof: stoyak tomdan chiqadi, valve: havo klapani
     elecMode: "box",
     cableMetal: "cu",  // cu: mis, al: alyuminiy
     groupCable: {},    // guruh nomi bo'yicha qo'lda tanlangan kesim, mm²
@@ -137,7 +150,7 @@ export function sampleProject() {
     item("panel", 730, 720),
     { ...item("light", 180, 375), ltype: "chandelier" }, { ...item("light", 575, 375), ltype: "ledpanel" },
     { ...item("light", 970, 100), ltype: "ledspot" }, { ...item("light", 970, 495), ltype: "chandelier" }, { ...item("light", 380, -140), ltype: "bulb" },
-    item("switch", 350, 520), item("switch", 410, 520), item("switch", 800, 260), item("switch", 830, 190),
+    item("switch", 350, 520), item("switch", 410, 520), item("switch", 800, 260), item("switch", 830, 190), item("switch", 440, -215),
     item("socket", 10, 200), item("socket", 10, 520), item("socket", 180, 740), item("socket", 420, 20), item("socket", 700, 20),
     item("socket", 1140, 400), item("socket", 1000, 740),
     item("power", 1005, 10), item("power", 300, -60),

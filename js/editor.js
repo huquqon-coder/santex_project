@@ -5,7 +5,18 @@ import { bounds, floorOf, fv, nearestSide, openingRect, roomAt } from "./geometr
 const SNAP = 10;
 const snap = (v) => Math.round(v / SNAP) * SNAP;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const ONE_ONLY = new Set(["boiler", "panel", "waterin", "sewerout", "heater"]);
+const ONE_ONLY = new Set(["boiler", "panel", "waterin", "sewerout", "heater", "tank"]);
+const mid = (pts) => {
+  // Polilinyaning o'rtasidagi nuqta va yo'nalishi
+  const L = pts.slice(1).reduce((a, q, i) => a + Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1]), 0);
+  let r = L / 2;
+  for (let i = 1; i < pts.length; i++) {
+    const [a, b] = [pts[i - 1], pts[i]], l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (r <= l && l > 0) return { x: a[0] + (b[0] - a[0]) * r / l, y: a[1] + (b[1] - a[1]) * r / l, h: Math.abs(b[0] - a[0]) > Math.abs(b[1] - a[1]), L };
+    r -= l;
+  }
+  return { x: pts[0][0], y: pts[0][1], h: true, L };
+};
 const TAB_GROUP = { plan: "build", heat: "heat", elec: "elec", plumb: "plumb" };
 const onFloor = (s, f) => floorOf(s) === f;
 
@@ -41,6 +52,7 @@ function symbol(kind, k) {
     case "power": return `<path d="M-10 4A10 10 0 0 1 10 4Z" style="fill:${c}"/><path d="M-4 -6V-12M4 -6V-12"/>`;
     case "waterin": return `<circle r="${w}" style="fill:${c}"/>`;
     case "sewerout": return `<circle r="${w}" style="fill:${c}"/><circle r="${w - 6}"/>`;
+    case "tank": return `<circle r="${w - 6}"/><circle r="${w - 16}" style="fill:${c};opacity:.35"/><path d="M${-w + 18} 0H${w - 18}"/>`;
     default: return "";
   }
 }
@@ -351,18 +363,49 @@ export class Editor {
       o.push(`<text class="rl" x="${r.x}" y="${r.y + (r.horiz ? -18 : 5)}">${r.short}</text>`);
     }
   }
+  // Quvur yoki kabel ustidagi yozuv, kalta bo'laklarga yozilmaydi
+  tag(o, pts, text, cls, off = 0, min = 0.8) {
+    const m = mid(pts);
+    if (m.L / 100 < min) return;
+    const x = m.x + (m.h ? 0 : off + 8), y = m.y + (m.h ? off - 8 : 0);
+    o.push(`<text class="${cls}" x="${x}" y="${y}" ${m.h ? "" : `transform="rotate(-90 ${x} ${y})"`}>${esc(text)}</text>`);
+  }
   elec(o, e) {
-    const f = this.ctx.floor;
-    for (const s of e.segs.filter((q) => onFloor(q, f))) o.push(this.line(s.pts, s.branch ? "pb" : "pe"));
+    const f = this.ctx.floor, sel = this.ctx.sel;
+    // Viklyuchatel qaysi chiroqni yoqishi: egri uzuq chiziq
+    for (const c of (e.controls || []).filter((q) => onFloor(q, f))) {
+      const [a, b] = [c.a, c.b], mx = (a[0] + b[0]) / 2 - (b[1] - a[1]) * 0.2, my = (a[1] + b[1]) / 2 + (b[0] - a[0]) * 0.2;
+      o.push(`<path class="ctl" d="M${a[0]} ${a[1]}Q${mx} ${my} ${b[0]} ${b[1]}"/>`);
+    }
+    for (const s of e.segs.filter((q) => onFloor(q, f))) {
+      o.push(this.line(s.pts, s.branch ? `pb ${s.role === "switch" ? "sw" : s.role === "light" ? "lt" : "so"}` : "pe"));
+      if (s.spec) this.tag(o, s.pts, s.spec.replace(".", ","), "cl", 0, s.branch ? 0.6 : 1.5);
+    }
     for (const b of e.boxes) {
-      if (b.manual || !onFloor(b, f)) continue;
-      o.push(`<rect class="jb" x="${b.x - 11}" y="${b.y - 11}" width="22" height="22"><title>${esc(b.title)}</title></rect>`);
+      if (!onFloor(b, f)) continue;
+      const s = sel?.type === "box" && sel.id === b.key;
+      if (!b.manual) o.push(`<rect data-t="box" data-id="${esc(b.key)}" class="jb ${s ? "s" : ""}" x="${b.x - 11}" y="${b.y - 11}" width="22" height="22"><title>${esc(b.title)}. Ulanish sxemasi uchun bosing.</title></rect>`);
+    }
+    for (const i of this.ctx.p.items.filter((q) => onFloor(q, f) && e.labels?.has(q.id))) {
+      o.push(`<text class="el" x="${i.x + 14}" y="${i.y - 12}">${e.labels.get(i.id)}</text>`);
     }
   }
   plumb(o, w) {
     const f = this.ctx.floor;
-    for (const s of w.sewer.filter((q) => onFloor(q, f))) o.push(this.line(s.pts, "ps", 0, s.dn === 110 ? 9 : 5));
-    for (const s of w.cold.filter((q) => onFloor(q, f))) o.push(this.line(s.pts, "pc", -7));
-    for (const s of w.hot.filter((q) => onFloor(q, f))) o.push(this.line(s.pts, "ph", 7));
+    for (const s of w.sewer.filter((q) => onFloor(q, f))) {
+      o.push(this.line(s.pts, "ps", 0, s.dn === 110 ? 9 : 5));
+      this.tag(o, s.pts, `Ø${s.dn} i=${Math.round(s.slope * 100)}%`, "pl ps", 0, 1);
+    }
+    for (const s of (w.fill || []).filter((q) => onFloor(q, f))) o.push(this.line(s.pts, "pc fl", -7));
+    for (const s of w.cold.filter((q) => onFloor(q, f))) { o.push(this.line(s.pts, "pc", -7)); this.tag(o, s.pts, `Ø${s.dn}`, "pl pc", -14, 1.2); }
+    for (const s of w.hot.filter((q) => onFloor(q, f))) { o.push(this.line(s.pts, "ph", 7)); this.tag(o, s.pts, `Ø${s.dn}`, "pl ph", 22, 1.2); }
+    for (const q of (w.cleanouts || []).filter((x) => onFloor(x, f))) {
+      o.push(`<g class="co"><circle cx="${q.x}" cy="${q.y}" r="10"/><text x="${q.x}" y="${q.y + 5}">R</text><title>Reviziya, ${q.why}</title></g>`);
+    }
+    for (const q of w.risers || []) o.push(`<circle class="rs2" cx="${q.x}" cy="${q.y}" r="13"><title>Stoyak</title></circle>`);
+    if (w.vent && onFloor(w.vent, f)) {
+      const v = w.vent;
+      o.push(`<g class="vt"><circle cx="${v.x + 22}" cy="${v.y + 22}" r="13"/><text x="${v.x + 22}" y="${v.y + 27}">V</text><title>${v.roof ? "Ventilyatsiya stoyagi tomdan chiqadi" : "Havo klapani"}, Ø110</title></g>`);
+    }
   }
 }

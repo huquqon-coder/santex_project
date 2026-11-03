@@ -1,12 +1,12 @@
-import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, WALL_MATERIALS, emptyProject, mountH, normalize, sampleProject, uid } from "./model.js";
+import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, TANK_PLACES, TANK_VOLUMES, WALL_MATERIALS, emptyProject, mountH, normalize, sampleProject, tankBase, uid } from "./model.js";
 import { PANEL_HEIGHTS, PANEL_TYPES, RAD_KINDS } from "./radiators.js";
 import { COVERS, STEPS } from "./ufh.js";
-import { METALS, SECTIONS, lightOf, watts } from "./electric.js";
+import { METALS, SECTIONS, busCount, lightOf, watts } from "./electric.js";
 import { Editor } from "./editor.js";
 import { floorList, floorOf, fv, overlaps } from "./geometry.js";
 import { computeHeating, heatingBom, schemeParts } from "./heating.js";
 import { computeElectric, electricBom } from "./electric.js";
-import { computePlumbing, plumbingBom } from "./plumbing.js";
+import { computePlumbing, plumbingBom, pumped } from "./plumbing.js";
 import { renderReport } from "./report.js";
 
 const $ = (id) => document.getElementById(id);
@@ -15,7 +15,7 @@ const TOOLS = {
   plan: [["select", "Tanlash"], ["room", "Xona chizish"], ["door", "Ichki eshik"], ["entry", "Kirish eshigi"], ["window", "Deraza"], ["stairs", "Zina"], ["riser", "Stoyak"]],
   heat: [["select", "Tanlash"], ["boiler", "Qozon"], ["rad", "Radiator qo'shish"], ["manifold", "Kollektor"]],
   elec: [["select", "Tanlash"], ["panel", "Shchit"], ["jbox", "Korobka"], ["light", "Chiroq"], ["switch", "Viklyuchatel"], ["socket", "Rozetka"], ["power", "Quvvatli rozetka"]],
-  plumb: [["select", "Tanlash"], ["waterin", "Suv kirishi"], ["sewerout", "Kanalizatsiya chiqishi"], ["sink", "Rakovina"], ["toilet", "Unitaz"], ["bathtub", "Vanna"], ["shower", "Dush"], ["washer", "Kir mashinasi"], ["heater", "Suv isitkich"]],
+  plumb: [["select", "Tanlash"], ["waterin", "Suv kirishi"], ["tank", "Suv bochkasi"],["sewerout", "Kanalizatsiya chiqishi"], ["sink", "Rakovina"], ["toilet", "Unitaz"], ["bathtub", "Vanna"], ["shower", "Dush"], ["washer", "Kir mashinasi"], ["heater", "Suv isitkich"]],
 };
 
 const ctx = {
@@ -144,9 +144,35 @@ const numI = (id, v, min, max, step = 10) => `<input type="number" id="${id}" va
 const sel = (id, opts, v) => `<select id="${id}">${opts.map(([k, n]) => `<option value="${k}" ${k === v ? "selected" : ""}>${n}</option>`).join("")}</select>`;
 const fmt = (n, d = 0) => n.toLocaleString("ru-RU", { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/ /g, " ");
 
+// Korobka ichidagi ulanish sxemasi: yuqorida klemma guruhlari, pastda korobkadan chiqadigan kabellar
+const BUS_COLOR = { L: "#8a4b22", N: "#1c69ba", PE: "#3d9a3d" };
+function boxHtml(b) {
+  const n = busCount(b), buses = ["L", "N", "PE", ...Object.keys(n).filter((k) => !BUS_COLOR[k]).sort()];
+  const step = 58, W = 56 + b.conns.length * step, top = 14, yDev = top + buses.length * 16 + 20;
+  let svg = buses.map((k, i) => `<line class="bus" x1="40" x2="${W - 4}" y1="${top + i * 16}" y2="${top + i * 16}" stroke="${BUS_COLOR[k] || "#c0392b"}"/><text x="2" y="${top + i * 16 + 4}">${k}</text>`).join("");
+  b.conns.forEach((c, j) => {
+    const x = 56 + j * step + step / 2 - 8;
+    c.wires.forEach((w, k) => {
+      const xo = x + (k - (c.wires.length - 1) / 2) * 8, y = top + buses.indexOf(w) * 16, col = BUS_COLOR[w] || "#c0392b";
+      svg += `<line x1="${xo}" x2="${xo}" y1="${y}" y2="${yDev}" stroke="${col}" stroke-width="2"/><circle cx="${xo}" cy="${y}" r="3.5" fill="${col}"/>`;
+    });
+    svg += `<rect class="dev" x="${x - 24}" y="${yDev}" width="48" height="22"/><text x="${x}" y="${yDev + 15}" text-anchor="middle">${c.label}</text>` +
+      `<text x="${x}" y="${yDev + 36}" text-anchor="middle" style="fill:var(--muted)">${c.spec.replace(".", ",")}</text>`;
+  });
+  const wago = Object.entries(n).filter(([, v]) => v > 1).map(([k, v]) => `${k}: ${v} sim`).join(", ");
+  return `<h3>${b.title}</h3><svg class="bx" viewBox="0 0 ${W} ${yDev + 44}" role="img" aria-label="Korobka ulanish sxemasi">${svg}</svg>` +
+    `<table class="mini"><tr><th>Belgi</th><th>Nima</th><th>Kabel</th><th>Simlar</th></tr>${b.conns.map((c) =>
+      `<tr><td>${c.label}</td><td style="text-align:left">${c.name}</td><td>${c.spec.replace(".", ",")}</td><td>${c.wires.join(", ")}</td></tr>`).join("")}</table>` +
+    `<p class="hint">Klemmalar: ${wago || "yo'q"}. L faza (jigarrang), N nol (ko'k), PE yerga ulash (sariq-yashil). V bilan boshlanganlar viklyuchatel o'chirib-yoqadigan faza: viklyuchatel faqat fazani uzadi, nol va PE chiroqqa to'g'ridan boradi.</p>`;
+}
+
 function selectionHtml() {
   const { p, sel: s } = ctx;
   if (!s) return "";
+  if (s.type === "box") {
+    const b = ctx.res.elec.boxes.find((x) => x.key === s.id);
+    return b ? boxHtml(b) : "";
+  }
   if (s.type === "room") {
     const r = p.rooms.find((x) => x.id === s.id); if (!r) return "";
     return `<h2>Xona</h2>` + field("rName", "Nomi", `<input id="rName" value="${r.name.replace(/"/g, "&quot;")}">`) +
@@ -186,6 +212,26 @@ function selectionHtml() {
       h += field("iLt", "Chiroq turi", sel("iLt", Object.entries(LIGHT_TYPES).map(([k, v]) => [k, v.name]), i.ltype || "ledpanel")) +
         `<div class="row">` + field("iN", i.ltype === "strip" ? "Uzunligi, m" : "Soni", numI("iN", i.n ?? t.n, 1, 50, 1)) +
         field("iW", "Jami quvvat, W", `<input type="number" id="iW" min="1" max="5000" step="1" value="${i.watts ?? ""}" placeholder="${watts(i)}">`) + `</div>`;
+    }
+    const E = ctx.res.elec;
+    if (i.kind === "light") {
+      const sws = p.items.filter((x) => x.kind === "switch" && floorOf(x) === floorOf(i));
+      const auto = E.ctl?.light.get(i.id);
+      h += field("iSw", "Viklyuchatel", sel("iSw", [["", `Avtomatik${auto && !i.sw ? ` (${E.labels.get(auto.sw)})` : ""}`], ...sws.map((x) => [x.id, E.labels.get(x.id) || "V"])], i.sw || ""));
+    }
+    if (i.kind === "switch") {
+      const c = E.ctl?.sw.get(i.id);
+      h += `<p class="hint">${E.labels.get(i.id) || ""}: ${c ? `${c.keys > 1 ? "2 klavishli, " : ""}yoqadi ${c.lights.map((l) => E.labels.get(l.id)).join(", ")}` : "hech qaysi chiroqqa bog'lanmagan"}. Chiroqni tanlab, viklyuchatelini o'zgartirish mumkin.</p>`;
+    }
+    if (i.kind === "jbox") h += E.boxes.filter((b) => b.id === i.id).map(boxHtml).join("") || `<p class="hint">Korobkaga ulanadigan nuqta yo'q: xonada kamida ikki nuqta bo'lishi kerak.</p>`;
+    if (i.kind === "tank") {
+      const w = ctx.res.plumb;
+      h += `<div class="row">` + field("iVol", "Hajmi, l", sel("iVol", TANK_VOLUMES.map((v) => [String(v), String(v)]), String(i.vol || 500))) +
+        field("iPlace", "Joyi", sel("iPlace", Object.entries(TANK_PLACES).map(([k, v]) => [k, v.name]), i.place || "stand")) + `</div>` +
+        (i.place === "stand" ? field("iStand", "Tagkursi balandligi, sm", numI("iStand", i.stand ?? 300, 50, 800, 10)) : "") +
+        `<label class="chk"><input type="checkbox" id="iPump" ${i.pump || i.place === "ground" ? "checked" : ""} ${i.place === "ground" ? "disabled" : ""}> Nasos stansiyasi</label>` +
+        `<p class="hint">Bochka tubi ${fmt(tankBase(i, p) / 100, 1)} m balandlikda. ${pumped(i) ? "Suvni nasos beradi." : "Suv o'z og'irligi bilan oqadi: har 1 m balandlik 0,1 bar bosim beradi."}</p>` +
+        (w.fill.length ? "" : `<p class="hint">Suv kirishi qo'yilsa, bochka shahar suvidan o'zi to'ladi.</p>`);
     }
     if (i.kind === "socket" || i.kind === "power") h += field("iW", "Hisobiy quvvat, W", `<input type="number" id="iW" min="1" max="10000" step="50" value="${i.watts ?? ""}" placeholder="${watts(i)}">`);
     if (ITEM_KINDS[i.kind].group === "elec") h += field("iH", "Poldan balandligi, sm", `<input type="number" id="iH" min="0" max="${p.h}" step="5" value="${i.h ?? ""}" placeholder="${mountH(i, p)}">`);
@@ -249,7 +295,8 @@ function resultHtml() {
       field("pMetal", "Sim metali", sel("pMetal", Object.entries(METALS).map(([k, v]) => [k, `${v.name} (${v.cable})`]), p.cableMetal || "cu")) +
       `<dl class="u"><dt>O'rnatilgan quvvat</dt><dd>${fmt(e.total / 1000, 1)} kW</dd><dt>Hisobiy quvvat</dt><dd>${fmt((e.demand || 0) / 1000, 1)} kW</dd><dt>Kirish avtomati</dt><dd>${e.inputA} A</dd>` +
       `<dt>Korobkalar</dt><dd>${e.boxes.length} dona</dd><dt>Kabel</dt><dd>${fmt(e.len)} m</dd><dt>${e.boxMode ? "Korobkasiz bo'lsa" : "Korobka bilan bo'lsa"}</dt><dd>${fmt(e.altLen)} m</dd></dl>` +
-      (e.boxMode ? `<p class="hint">Xonaga korobka qo'ymasangiz, u avtomatik joylanadi (siyohrang). "Korobka" bilan o'zingiz joyini tanlaysiz.</p>` : "") +
+      (e.boxMode ? `<p class="hint">Xonaga korobka qo'ymasangiz, u avtomatik joylanadi (siyohrang). "Korobka" bilan o'zingiz joyini tanlaysiz. Korobkani bossangiz, ichidagi ulanish sxemasi chiqadi.</p>` : "") +
+      `<p class="hint">Rejada: qizil uzuq chiziq korobkadan viklyuchatelga, sariq korobkadan chiroqqa, kulrang egri chiziq viklyuchatel qaysi chiroqni yoqishini ko'rsatadi. Kabel ustida tomirlar soni va kesimi yozilgan.</p>` +
       `<table class="mini"><tr><th>Guruh</th><th>Avtomat</th><th>Kesim, mm²</th><th>m</th><th>ΔU</th></tr>${e.groups.map((g) =>
         `<tr><td>${g.name}${g.rcd ? " (UZO)" : ""}<br><small>${fmt(g.P)} W</small></td><td>${g.br} A</td>` +
         `<td><select class="gsel" data-g="${g.name.replace(/"/g, "&quot;")}" aria-label="${g.name} sim kesimi"><option value="">avto ${g.need}</option>${SECTIONS.map((s) => `<option value="${s}" ${g.manual && g.mm === s ? "selected" : ""}>${s}</option>`).join("")}</select></td>` +
@@ -257,8 +304,14 @@ function resultHtml() {
   }
   if (tab === "plumb") {
     const w = res.plumb;
-    const list = (o) => Object.entries(o).map(([d, l]) => `<dt>Ø${d}</dt><dd>${fmt(l, 1)} m</dd>`).join("");
-    return `<h2>Santexnika</h2><dl class="u"><dt>Jihozlar</dt><dd>${w.fixtures} dona</dd>${list(w.len)}</dl><h3>Kanalizatsiya</h3><dl class="u">${list(w.sewerLen)}<dt>Chiqish chuqurligi</dt><dd>${fmt(w.drop, 2)} m</dd></dl>` + warningsHtml(w.warnings);
+    const list = (o, pre = "") => Object.entries(o).map(([d, l]) => `<dt>${pre}Ø${d}</dt><dd>${fmt(l, 1)} m</dd>`).join("");
+    const src = w.source === "tank" ? `Bochka ${w.tank.vol} l, ${TANK_PLACES[w.tank.place].name.toLowerCase()}${pumped(w.tank) ? ", nasos bilan" : ""}` : w.source === "city" ? "Shahar suvi" : "yo'q";
+    return `<h2>Santexnika</h2><dl class="u"><dt>Suv manbai</dt><dd>${src}</dd><dt>Jihozlar</dt><dd>${w.fixtures} dona</dd>${w.mainDn ? `<dt>Asosiy quvur</dt><dd>Ø${w.mainDn}</dd>` : ""}</dl>` +
+      `<h3>Suv quvurlari</h3><dl class="u">${list(w.coldLen, "sovuq ")}${list(w.hotLen, "issiq ")}</dl>` +
+      `<h3>Kanalizatsiya</h3><dl class="u">${list(w.sewerLen)}<dt>Chiqishda chuqurlik</dt><dd>${fmt(w.depth, 2)} m</dd>${w.deepest ? `<dt>Eng uzoq nuqta</dt><dd>${w.deepest}</dd>` : ""}<dt>Reviziya</dt><dd>${w.cleanouts.length} dona</dd></dl>` +
+      `<p class="hint">Nishablik: Ø50 quvur 3 %, Ø110 quvur 2 %. Chuqurlik pol sathidan quvur tagigacha.</p>` +
+      field("pVent", "Kanalizatsiya ventilyatsiyasi", sel("pVent", [["roof", "Stoyak tomdan chiqadi"], ["valve", "Havo klapani (cherdakda)"]], p.sewerVent || "roof")) +
+      (w.notes.length ? `<ul class="comp">${w.notes.map((x) => `<li>${x}</li>`).join("")}</ul>` : "") + warningsHtml(w.warnings);
   }
   return "";
 }
@@ -326,7 +379,9 @@ $("side").addEventListener("change", (e) => {
     iLt: () => { it.ltype = v; delete it.n; delete it.watts; if (!LIGHT_TYPES[v].wall) delete it.h; },
     iN: () => (it.n = Math.max(1, n || 1)), iW: () => (it.watts = opt(v)), iH: () => (it.h = opt(v)),
     pCirc: () => (p.circ = v), pLoop: () => (p.loop = v), pFuel: () => (p.fuel = v),
-    pPit: () => (p.pit = n), pElec: () => (p.elecMode = v),
+    pPit: () => (p.pit = n), pElec: () => (p.elecMode = v), pVent: () => (p.sewerVent = v),
+    iSw: () => (it.sw = v || undefined), iVol: () => (it.vol = n), iPlace: () => (it.place = v), iStand: () => (it.stand = n),
+    iPump: () => (it.pump = e.target.checked),
   }[id];
   if (!set) return ctx.discardCommit();
   set(); ctx.changed();

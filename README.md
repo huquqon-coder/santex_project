@@ -8,8 +8,9 @@ Bir yoki ikki qavatli uy rejasini chizib, isitish, elektr va santexnika tizimlar
 - **Isitish:** issiqlik yo'qotish, radiator tanlash va joylash, qozon quvvati, quvur yo'li. Suv aylanishi: nasos, o'zi aylanadigan yoki gibrid. Tizim: ochiq yoki yopiq.
 - **Iliq pol va kollektor:** xona bo'yicha iliq pol, quvur qadami va qoplama, konturlar soni, kollektor va aralashtirish uzeli. Radiatorlarni troynikli yoki kollektordan nurli ulash.
 - **Radiatorlar:** cho'yan, bimetall yoki po'lat panel. Joyini surish, sonini va o'lchamini qo'lda berish mumkin.
-- **Elektr:** guruhlarga bo'lish, avtomat va kabel tanlash, taqsimlash korobkasi bilan yoki korobkasiz montaj. Chiroq turlari, o'rnatish balandligi, mis yoki alyuminiy sim, kesim va kuchlanish tushishi.
-- **Santexnika:** sovuq va issiq suv, kanalizatsiya diametri va uzunligi.
+- **Isitish detallari:** xavfsizlik guruhi qismlari, membranali yoki ochiq bak, termomanometr, loyqa filtr, to'ldirish va to'kish kranlari, radiator kranlari, fitinglar, tutun quvuri.
+- **Elektr:** guruhlarga bo'lish, avtomat va kabel tanlash, taqsimlash korobkasi bilan yoki korobkasiz montaj. Chiroq turlari, o'rnatish balandligi, mis yoki alyuminiy sim, kesim va kuchlanish tushishi. Korobkadan viklyuchatel, chiroq va rozetkaga ulanish sxemasi, qaysi viklyuchatel qaysi chiroqni yoqishi.
+- **Santexnika:** shahar suvi yoki suv bochkasi (yerda, tagkursida, tomda, nasos stansiyasi bilan), bosim tekshiruvi. Sovuq va issiq suv quvuri diametri, kranlar va fitinglar. Kanalizatsiya diametri, nishabligi, chiqishdagi chuqurlik, reviziyalar va ventilyatsiya stoyagi.
 - **3D:** uy va tizimlarning aylantiriladigan modeli.
 - **Hisob:** materiallar ro'yxati va narx, chop etish.
 

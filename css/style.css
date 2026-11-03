@@ -107,7 +107,23 @@ input:not([type=checkbox]), select { font: 14px var(--body); padding: 5px 7px; b
 #plan .hd.ne, #plan .hd.sw { cursor: nesw-resize; }
 #plan .ld { font-family: var(--mono); font-weight: 500; fill: var(--accent); text-anchor: middle; pointer-events: none; }
 #plan .pb { stroke: var(--elec); stroke-width: 1.5; stroke-dasharray: 8 6; }
-#plan .jb { fill: #7a4fa3; stroke: var(--panel); stroke-width: 2; }
+#plan .jb { fill: #7a4fa3; stroke: var(--panel); stroke-width: 2; cursor: pointer; }
+#plan .jb.s { stroke: var(--accent); stroke-width: 5; }
+#plan .pb.sw { stroke: var(--hot); stroke-dasharray: 3 5; }
+#plan .pb.lt { stroke: var(--elec); stroke-dasharray: none; }
+#plan .ctl { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 2 6; pointer-events: none; }
+#plan .cl { font: 500 13px var(--mono); fill: var(--elec); text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--panel); stroke-width: 4px; }
+#plan .el { font: 600 15px var(--mono); fill: var(--fg); pointer-events: none; paint-order: stroke; stroke: var(--panel); stroke-width: 4px; }
+#plan .pl { font: 500 13px var(--mono); text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--panel) !important; stroke-width: 4px !important; }
+#plan .pl.ps { fill: var(--sew); } #plan .pl.pc { fill: var(--cold); } #plan .pl.ph { fill: var(--hot); }
+#plan .fl { stroke-dasharray: 10 6; }
+#plan .co circle, #plan .vt circle { fill: var(--panel); stroke: var(--sew); stroke-width: 3; }
+#plan .co text, #plan .vt text { font: 700 14px var(--mono); fill: var(--sew); text-anchor: middle; }
+#plan .co, #plan .vt { pointer-events: none; }
+.bx { width: 100%; height: auto; flex: none; display: block; font-family: var(--mono); }
+.bx .bus { stroke-width: 3; }
+.bx text { font-size: 11px; fill: var(--fg); }
+.bx .dev { fill: var(--bg); stroke: var(--line); }
 #planHint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100% - 32px)); background: var(--panel); border: 1px solid var(--line); padding: 16px 18px; pointer-events: none; }
 #planHint ol { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 5px; }
 #plan .pv { fill: color-mix(in srgb, var(--accent) 20%, transparent); stroke: var(--accent); stroke-width: 3; stroke-dasharray: 10 8; }

@@ -398,6 +398,69 @@ export function vessel() {
   C(g, 0.012, 0.06, M.brass, 0, 0.45, 0);
   return g;
 }
+// Dumaloq shkalali asbob (manometr, termometr), oldi +z
+export function gauge(r = 0.04) {
+  const g = G();
+  C(g, 0.008, 0.06, M.brass, 0, -0.03, 0);
+  C(g, r, 0.025, M.chrome, 0, r, 0, "z");
+  C(g, r * 0.85, 0.027, M.white, 0, r, 0.001, "z");
+  B(g, 0.004, r * 0.7, 0.003, M.red, 0, r, 0.016).rotation.z = -0.8;
+  return g;
+}
+export function threeWay() {
+  const g = G();
+  C(g, 0.035, 0.12, M.brass, 0, 0, 0, "x");
+  C(g, 0.03, 0.07, M.brass, 0, -0.04, 0);
+  C(g, 0.03, 0.04, M.dark, 0, 0.05, 0);
+  return g;
+}
+
+/* Suv ta'minoti va kanalizatsiya */
+// Plastik bochka: d diametr, h balandlik, legs tagkursi balandligi (pastga), metr
+export function waterTank(d, h, legs = 0) {
+  const g = G(), mat = std(0x2f7fb0, { roughness: 0.6 });
+  C(g, d / 2, h, mat, 0, h / 2, 0);
+  for (let y = 0.15; y < h - 0.05; y += 0.25) T(g, d / 2 + 0.004, 0.012, mat, 0, y, 0).rotation.x = Math.PI / 2;
+  C(g, d / 2 - 0.02, 0.06, mat, 0, h + 0.03, 0, "y", d / 2 - 0.08);
+  C(g, 0.12, 0.05, M.dark, 0, h + 0.08, 0);
+  C(g, 0.02, 0.1, M.brass, d / 2 + 0.03, 0.08, 0, "x");
+  if (legs > 0) {
+    const s = d / 2 + 0.05;
+    B(g, d + 0.2, 0.05, d + 0.2, M.steel, 0, -0.05, 0);
+    for (const [x, z] of [[-s, -s], [s, -s], [-s, s], [s, s]]) B(g, 0.06, legs - 0.05, 0.06, M.steel, x, -legs, z);
+    for (const y of [-legs * 0.65, -legs * 0.3]) {
+      B(g, 2 * s, 0.03, 0.03, M.steel, 0, y, -s); B(g, 2 * s, 0.03, 0.03, M.steel, 0, y, s);
+      B(g, 0.03, 0.03, 2 * s, M.steel, -s, y, 0); B(g, 0.03, 0.03, 2 * s, M.steel, s, y, 0);
+    }
+  }
+  return g;
+}
+// Nasos stansiyasi: yotiq gidroakkumulyator ustida nasos va rele
+export function pumpStation() {
+  const g = G();
+  C(g, 0.15, 0.42, M.blue, 0, 0.2, 0, "x");
+  S(g, 0.15, M.blue, -0.21, 0.2, 0, 0.35, 1, 1); S(g, 0.15, M.blue, 0.21, 0.2, 0, 0.35, 1, 1);
+  for (const x of [-0.14, 0.14]) B(g, 0.04, 0.06, 0.24, M.dark, x, 0, 0);
+  C(g, 0.08, 0.26, M.dark, 0, 0.45, 0, "x");
+  C(g, 0.07, 0.08, M.blue, 0.16, 0.45, 0, "x");
+  B(g, 0.06, 0.05, 0.05, M.white, -0.05, 0.53, 0.04);
+  const m = gauge(0.03); m.position.set(0.05, 0.53, 0.04); g.add(m);
+  return g;
+}
+export function cleanout() {
+  const g = G();
+  C(g, 0.06, 0.12, M.sewer, 0, 0.06, 0);
+  C(g, 0.066, 0.025, M.grey, 0, 0.13, 0);
+  return g;
+}
+export function ventCap(valve) {
+  const g = G();
+  if (valve) { C(g, 0.06, 0.12, M.grey, 0, 0.06, 0); S(g, 0.06, M.grey, 0, 0.12, 0, 1, 0.6, 1); return g; }
+  C(g, 0.07, 0.04, M.galv, 0, 0.02, 0);
+  C(g, 0.02, 0.09, M.galv, 0, 0.09, 0, "y", 0.13);
+  return g;
+}
+
 export function safetyGroup() {
   const g = G();
   C(g, 0.02, 0.2, M.brass, 0, 0, 0, "x");

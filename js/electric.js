@@ -48,10 +48,35 @@ function autoBoxSpot(r, pts) {
   return { x, y };
 }
 
-function wire(p, g, panel, grids, cache, boxMode, boxes) {
+// Viklyuchatel va chiroqlar bog'lanishi: qo'lda tanlangan, bo'lmasa o'sha xonadagi, bo'lmasa 4 m ichidagi eng yaqin viklyuchatel
+function controls(p, labels) {
+  const map = new Map(), sw = new Map();
+  for (const f of floorList(p)) {
+    const v = fv(p, f), switches = v.items.filter((i) => i.kind === "switch");
+    for (const l of v.items.filter((i) => i.kind === "light")) {
+      const r = roomAt(v, l.x, l.y), d = (s) => Math.hypot(s.x - l.x, s.y - l.y);
+      let s = switches.find((x) => x.id === l.sw);
+      if (!s) s = switches.filter((x) => r && roomAt(v, x.x, x.y) === r).sort((a, b) => d(a) - d(b))[0];
+      if (!s) s = switches.filter((x) => d(x) < 400).sort((a, b) => d(a) - d(b))[0];
+      if (!s) continue;
+      if (!sw.has(s.id)) sw.set(s.id, []);
+      sw.get(s.id).push(l);
+    }
+  }
+  // 1 yoki 2 klavish: ikkitadan ko'p chiroq bo'lsa ikkinchi klavish qolganlarini yoqadi
+  for (const [id, lights] of sw) {
+    const keys = Math.min(2, lights.length);
+    lights.forEach((l, k) => map.set(l.id, { sw: id, bus: keys > 1 ? `${labels.get(id)}.${Math.min(k, 1) + 1}` : labels.get(id) }));
+    sw.set(id, { lights, keys, buses: keys > 1 ? [`${labels.get(id)}.1`, `${labels.get(id)}.2`] : [labels.get(id)] });
+  }
+  return { light: map, sw };
+}
+
+function wire(p, g, panel, grids, cache, boxMode, boxes, ctl, labels, mm) {
   const v = fv(p, g.floor), grid = grids(g.floor), dropM = Math.max(1, p.h / 100 - 0.3);
-  const segs = [];
+  const segs = [], by = {}, main = `3×${mm}`;
   let len = 0, ok = true;
+  const addL = (spec, l) => { by[spec] = (by[spec] || 0) + l; len += l; };
   const trunk = [], direct = [];
   if (boxMode && g.items.length > 1) {
     const byRoom = new Map();
@@ -65,22 +90,49 @@ function wire(p, g, panel, grids, cache, boxMode, boxes) {
       if (!r || pts.length < 2) { direct.push(...pts); continue; }
       const manual = v.items.find((i) => i.kind === "jbox" && roomAt(v, i.x, i.y) === r);
       const spot = manual || autoBoxSpot(r, pts);
-      boxes.push({ x: spot.x, y: spot.y, floor: g.floor, manual: !!manual, id: manual?.id, room: r.name, title: `Korobka: ${r.name}, ${g.name}`, points: pts.length });
-      trunk.push({ x: spot.x, y: spot.y, floor: g.floor });
+      const conns = [{ label: "Kirish", name: `Shchitdan, ${g.name.toLowerCase()}`, spec: main, wires: ["L", "N", "PE"] }];
       // Har bir nuqta korobkadan alohida kabel oladi
       for (const q of pts) {
         const t = routeTree(grid, spot, [{ x: q.x, y: q.y }]);
         ok = ok && t.ok;
-        len += t.length * 1.15 + dropM;
-        segs.push(...t.segs.map((s) => ({ ...s, branch: true, floor: g.floor })));
+        const c = conn(q, ctl, labels, mm, pts);
+        conns.push(c);
+        addL(c.spec, t.length * 1.15 + dropM);
+        segs.push(...t.segs.map((s, k) => ({ ...s, branch: true, role: q.kind, spec: k ? null : c.spec, floor: g.floor })));
       }
+      // Boshqa xonadagi viklyuchatel bilan bog'lovchi sim
+      for (const q of pts.filter((x) => x.kind === "switch")) {
+        for (const l of ctl.sw.get(q.id)?.lights || []) {
+          if (pts.includes(l)) continue;
+          const b = ctl.light.get(l.id).bus;
+          if (!conns.some((c) => c.label === "→" + b)) conns.push({ label: "→" + b, name: `${b} boshqa xona korobkasiga (${labels.get(l.id)})`, spec: `1×${mm}`, wires: [b], link: true });
+        }
+      }
+      const key = manual ? manual.id : `auto:${r.id}:${g.name}`;
+      boxes.push({ key, x: spot.x, y: spot.y, floor: g.floor, manual: !!manual, id: manual?.id, room: r.name, group: g.name, title: `Korobka: ${r.name}, ${g.name}`, points: pts.length, conns });
+      trunk.push({ x: spot.x, y: spot.y, floor: g.floor });
     }
   } else direct.push(...g.items);
   const t = multiFloor(p, panel, [...trunk, ...direct.map((i) => ({ x: i.x, y: i.y, floor: g.floor }))], GRID, cache);
   ok = ok && t.ok;
-  len += t.length * 1.15 + direct.length * dropM;
-  segs.push(...t.segs);
-  return { segs, len, ok, risers: t.risers };
+  addL(main, t.length * 1.15 + direct.length * dropM);
+  segs.push(...t.segs.map((s, k) => ({ ...s, spec: k ? null : main })));
+  return { segs, len, ok, risers: t.risers, by };
+}
+
+// Korobkadan nuqtaga: kabel tomirlari va qaysi klemmaga ulanishi
+function conn(q, ctl, labels, mm, pts) {
+  const label = labels.get(q.id) || "";
+  if (q.kind === "switch") {
+    const s = ctl.sw.get(q.id), keys = s?.keys || 1;
+    return { label, name: `Viklyuchatel, ${keys > 1 ? "2 klavishli" : "1 klavishli"}`, spec: `${1 + keys}×${mm}`, wires: ["L", ...(s?.buses || [label])] };
+  }
+  if (q.kind === "light") {
+    const c = ctl.light.get(q.id), t = lightOf(q);
+    const far = c && !pts.some((x) => x.id === c.sw);
+    return { label, name: `${t.name}${c ? "" : ", viklyuchatelsiz"}${far ? `, ${c.bus} boshqa korobkadan` : ""}`, spec: `3×${mm}`, wires: [c ? c.bus : "L", "N", "PE"] };
+  }
+  return { label, name: q.kind === "power" ? "Quvvatli rozetka" : "Rozetka", spec: `3×${mm}`, wires: ["L", "N", "PE"] };
 }
 
 export function computeElectric(p) {
@@ -89,8 +141,26 @@ export function computeElectric(p) {
   const many = (p.floors || 1) > 1;
   const groups = floorList(p).flatMap((f) => buildGroups(fv(p, f), f, many));
   const boxMode = p.elecMode !== "loop";
-  const out = { groups: [], warnings, segs: [], cable: {}, total: 0, inputA: 0, boxes: [], risers: [], boxMode, altLen: 0, len: 0 };
+  const out = { groups: [], warnings, segs: [], cable: {}, total: 0, inputA: 0, boxes: [], risers: [], boxMode, altLen: 0, len: 0, labels: new Map(), controls: [] };
   if (!groups.length) return out;
+  // Rejadagi belgilar: V viklyuchatel, Ch chiroq, R rozetka, Q quvvatli rozetka; har qavatda alohida raqam
+  const PREFIX = { switch: "V", light: "Ch", socket: "R", power: "Q" };
+  for (const f of floorList(p)) {
+    const cnt = {};
+    for (const i of fv(p, f).items.filter((x) => PREFIX[x.kind])) {
+      cnt[i.kind] = (cnt[i.kind] || 0) + 1;
+      out.labels.set(i.id, PREFIX[i.kind] + (many ? `${f + 1}.` : "") + cnt[i.kind]);
+    }
+  }
+  const ctl = controls(p, out.labels);
+  out.ctl = ctl;
+  for (const [id, s] of ctl.sw) {
+    const a = p.items.find((i) => i.id === id);
+    for (const l of s.lights) out.controls.push({ floor: floorOf(a), a: [a.x, a.y], b: [l.x, l.y] });
+  }
+  for (const l of p.items.filter((i) => i.kind === "light" && floorOf(i) < (p.floors || 1) && !ctl.light.has(i.id))) {
+    warnings.push(`${out.labels.get(l.id)}: chiroqqa viklyuchatel topilmadi. Xonaga viklyuchatel qo'ying yoki chiroqni tanlab bog'lang.`);
+  }
   if (!panel) warnings.push("Elektr shchiti qo'yilmagan, kabellar chizilmadi.");
   const cache = new Map();
   const grids = (f) => {
@@ -109,19 +179,19 @@ export function computeElectric(p) {
     if (manual && manual < need) warnings.push(`${g.name}: ${manual} mm² sim ${br} A avtomatga yupqa, kamida ${need} mm² kerak.`);
     let len = 0;
     if (panel) {
-      const w = wire(p, g, panel, grids, cache, boxMode, out.boxes);
+      const w = wire(p, g, panel, grids, cache, boxMode, out.boxes, ctl, out.labels, mm);
       if (!w.ok) warnings.push(`${g.name}: kabel yo'li topilmadi.`);
       len = w.len;
       out.segs.push(...w.segs);
       out.risers.push(...w.risers);
-      out.altLen += wire(p, g, panel, grids, cache, !boxMode, []).len;
+      for (const [s, l] of Object.entries(w.by)) out.cable[s] = (out.cable[s] || 0) + l;
+      out.altLen += wire(p, g, panel, grids, cache, !boxMode, [], ctl, out.labels, mm).len;
     }
     // Kuchlanish tushishi: yuk liniya bo'ylab taqsimlangan bo'lsa yarim uzunlik bilan
     const Lr = g.items.length > 1 ? len / 2 : len;
     const dU = ((2 * METALS[metal].rho * Lr * (P / V)) / mm / V) * 100;
     if (dU > 4) warnings.push(`${g.name}: kuchlanish ${dU.toFixed(1)} % tushadi, simni yo'g'onlashtiring.`);
     out.groups.push({ name: g.name, count: g.items.length, P, I, br, mm, need, manual: !!manual, dU, len, rcd: g.wet, kind: g.items[0].kind });
-    out.cable[mm] = (out.cable[mm] || 0) + len;
     out.total += P;
     out.len += len;
   }
@@ -138,13 +208,21 @@ export function computeElectric(p) {
   return out;
 }
 
+// Korobkadagi har bir klemma guruhiga nechta sim keladi
+export function busCount(b) {
+  const n = {};
+  for (const c of b.conns || []) for (const w of c.wires) n[w] = (n[w] || 0) + 1;
+  return n;
+}
+
 export function electricBom(p, e) {
   if (!e.groups.length) return [];
   const G = "Elektr", n = (k) => p.items.filter((i) => i.kind === k && floorOf(i) < (p.floors || 1)).length;
   const rows = [];
   const mt = METALS[p.cableMetal === "al" ? "al" : "cu"];
-  for (const mm of Object.keys(e.cable).sort((a, b) => a - b)) {
-    rows.push({ g: G, k: `cable_${mt.cable}_${mm}`, name: `${mt.name} kabel ${mt.cable}`, spec: `3×${mm} mm²`, unit: "m", qty: Math.ceil(e.cable[mm]) });
+  const order = (s) => { const [c, mm] = s.split("×").map(Number); return mm * 10 + c; };
+  for (const s of Object.keys(e.cable).sort((a, b) => order(a) - order(b))) {
+    rows.push({ g: G, k: `cable_${mt.cable}_${s}`, name: `${mt.name} kabel ${mt.cable}`, spec: `${s.replace(".", ",")} mm²`, unit: "m", qty: Math.ceil(e.cable[s]) });
   }
   const br = {};
   e.groups.forEach((g) => (br[g.br] = (br[g.br] || 0) + 1));
@@ -154,9 +232,16 @@ export function electricBom(p, e) {
   if (rcd) rows.push({ g: G, k: "rcd", name: "UZO, 30 mA", spec: "25 A", unit: "dona", qty: rcd });
   rows.push({ g: G, k: "box", name: "Elektr shchiti", spec: `${e.groups.length + 4} modul`, unit: "dona", qty: 1 });
   if (e.boxes.length) {
-    const wires = e.boxes.reduce((a, b) => a + b.points + 1, 0);
     rows.push({ g: G, k: "jbox", name: "Taqsimlash korobkasi", spec: "100×100 mm", unit: "dona", qty: e.boxes.length });
-    rows.push({ g: G, k: "wago", name: "Ulash klemmasi", spec: "5 kontaktli", unit: "dona", qty: Math.ceil((wires * 3) / 4) });
+    // Har bir klemma guruhi (L, N, PE, viklyuchatel chiqishi) undagi simlar soniga qarab
+    const wago = { 2: 0, 3: 0, 5: 0 };
+    for (const b of e.boxes) {
+      for (const n of Object.values(busCount(b))) {
+        if (n < 2) continue;
+        if (n <= 2) wago[2]++; else if (n <= 3) wago[3]++; else if (n <= 5) wago[5]++; else wago[5] += Math.ceil((n - 1) / 4);
+      }
+    }
+    for (const c of [2, 3, 5]) if (wago[c]) rows.push({ g: G, k: "wago" + c, name: "Ulash klemmasi (Wago)", spec: `${c} kontaktli`, unit: "dona", qty: wago[c] });
   }
   for (const [k, name] of [["socket", "Rozetka"], ["power", "Quvvatli rozetka"], ["switch", "Viklyuchatel"]]) {
     if (n(k)) rows.push({ g: G, k: "e_" + k, name, spec: "", unit: "dona", qty: n(k) });

@@ -4,7 +4,9 @@ import { bounds, floorList, floorOf, fv, inRoom, openingRect } from "./geometry.
 const SIZE = 20;
 
 export function buildGrid(p, { door = 30, wall = 4, outside = 3 } = {}) {
-  const b = bounds(p);
+  const b = { ...bounds(p) };
+  // Uydan tashqaridagi jihozlar (bochka, chiqish) ham to'r ichida bo'lsin
+  for (const i of p.items) { b.x0 = Math.min(b.x0, i.x); b.x1 = Math.max(b.x1, i.x); b.y0 = Math.min(b.y0, i.y); b.y1 = Math.max(b.y1, i.y); }
   const x0 = b.x0 - 200, y0 = b.y0 - 200;
   const nx = Math.ceil((b.x1 - b.x0 + 400) / SIZE), ny = Math.ceil((b.y1 - b.y0 + 400) / SIZE);
   const cost = new Float32Array(nx * ny);
@@ -86,7 +88,8 @@ function pathToNet(g, start, inNet) {
 }
 
 // Ildizdan nuqtalargacha daraxt. Har bir qirra orqali o'tuvchi yukni ham hisoblaydi.
-export function routeTree(g, root, targets) {
+// walk(load) berilsa, har bir nuqtadan ildizgacha metr boshiga shu qiymat yig'iladi (masalan, nishablik).
+export function routeTree(g, root, targets, walk) {
   const rootC = toCell(g, root.x, root.y);
   const net = new Set([rootC]), parent = new Map();
   const order = targets
@@ -116,6 +119,11 @@ export function routeTree(g, root, targets) {
   }
   for (const s of segs) s.pts = simplify(s.pts);
   const length = (parent.size * SIZE) / 100;
+  if (walk) for (const e of order) {
+    let s = 0, n = 0;
+    for (let c = e.c; parent.has(c); c = parent.get(c)) { s += walk(load.get(c) || 0) * SIZE / 100; n++; }
+    e.t.walk = s; e.t.path = n * SIZE / 100;
+  }
   return { segs, length, ok: order.every((e) => net.has(e.c)) };
 }
 
@@ -145,7 +153,7 @@ export function riserPoint(p, root, f) {
 }
 
 // Ildizdan barcha qavatlardagi nuqtalargacha: har qavatda daraxt, qavatlar orasi stoyak orqali
-export function multiFloor(p, root, targets, opts = {}, cache = new Map()) {
+export function multiFloor(p, root, targets, opts = {}, cache = new Map(), walk) {
   const base = floorOf(root), height = (p.h + (p.slab ?? 30)) / 100;
   const grid = (f) => {
     const key = f + JSON.stringify(opts);
@@ -160,15 +168,16 @@ export function multiFloor(p, root, targets, opts = {}, cache = new Map()) {
     if (!list.length) continue;
     const pt = riserPoint(p, root, f);
     const load = list.reduce((a, t) => a + (t.load || 0), 0);
-    const r = routeTree(grid(f), pt, list);
+    const r = routeTree(grid(f), pt, list, walk);
     ok = ok && r.ok; length += r.length + height * Math.abs(f - base);
     segs.push(...r.segs.map((s) => ({ ...s, floor: f })));
     risers.push({ x: pt.x, y: pt.y, from: base, to: f, load, len: height * Math.abs(f - base), auto: pt.auto });
   }
   const here = targets.filter((t) => floorOf(t) === base);
   const all = [...here, ...risers.map((q) => ({ x: q.x, y: q.y, load: q.load }))];
-  const r = routeTree(grid(base), root, all);
+  const r = routeTree(grid(base), root, all, walk);
   ok = ok && r.ok; length += r.length;
   segs.push(...r.segs.map((s) => ({ ...s, floor: base })));
+  risers.forEach((q, i) => { q.walk = all[here.length + i].walk; });
   return { segs, risers, ok, length };
 }

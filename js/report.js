@@ -2,7 +2,7 @@
 export const LABOR = {
   l_riser: 300000, l_boiler: 3000000, l_ufh: 80000, l_man: 600000, l_rad: 200000, l_pipe: 40000, l_start: 1000000,
   l_point: 60000, l_cable: 10000, l_panel: 800000, l_jbox: 50000,
-  l_fix: 150000, l_wpipe: 30000,
+  l_fix: 150000, l_wpipe: 30000, l_tank: 400000, l_pumpst: 500000, l_vent: 300000, l_safety: 300000,
 };
 const mln = (v) => (v / 1e6).toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const num = (v) => Math.round(v).toLocaleString("ru-RU").replace(/ /g, " ");
