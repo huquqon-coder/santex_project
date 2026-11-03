@@ -1,7 +1,8 @@
 // Issiqlik yo'qotish, radiator tanlash, quvur yo'li va o'zi aylanish tekshiruvi.
 import { ROOM_TYPES, WALL_MATERIALS } from "./model.js";
 import { SIDES, coverage, extLength, floorList, floorOf, fv, isExterior, sideInfo, openingRect } from "./geometry.js";
-import { multiFloor, segLen } from "./route.js";
+import { buildGrid, multiFloor, riserPoint, routeTree, segLen } from "./route.js";
+import { MAX_LOOP, entryPoint, meander, ufhRoom } from "./ufh.js";
 import { RAD_KINDS, sizeRad, unitMax } from "./radiators.js";
 
 const U_WIN = 1.6, U_DOOR = 2, U_CEIL = 0.5, U_FLOOR = 0.6, T_GROUND = 5, CEIL_K = 0.9;
@@ -93,13 +94,17 @@ export function computeHeating(p) {
     const l = roomLoss(p, r, wallU);
     for (const k in totals) totals[k] += l.parts[k];
     const dTm = tm - t.ti;
+    // Iliq pol bo'lsa, yetmagan qismini radiator beradi
+    const uf = r.ufh ? ufhRoom(r, p, t.ti) : null;
+    const rest = uf ? Math.max(0, l.Q - uf.power) : l.Q;
     // Qo'lda boshqariladigan xonada foydalanuvchi qo'ygan radiatorlar, aks holda avtomatik joylar
     let entries;
     if (r.radManual) entries = (p.radiators || []).filter((q) => q.room === r.id);
+    else if (rest < l.Q * 0.05) entries = [];
     else {
       const spots = radiatorSpots(fv(p, f), r);
       const windows = spots.filter((s) => s.rank === 0).length;
-      const units = Math.max(1, windows, Math.ceil(l.Q / unitMax(p.radType || "cast", p, dTm)));
+      const units = Math.max(1, uf ? 1 : windows, Math.ceil(rest / unitMax(p.radType || "cast", p, dTm)));
       entries = [];
       for (const s of spots) {
         if (entries.length >= units) break;
@@ -108,9 +113,9 @@ export function computeHeating(p) {
       }
       if (!entries.length) warnings.push(`${r.name}: radiator uchun bo'sh devor topilmadi.`);
     }
-    if (r.radManual && !entries.length) warnings.push(`${r.name}: radiator yo'q.`);
-    const per = entries.length ? l.Q / entries.length : 0;
-    let power = 0;
+    if (r.radManual && !entries.length && !uf) warnings.push(`${r.name}: radiator yo'q.`);
+    const per = entries.length ? rest / entries.length : 0;
+    let power = uf ? uf.power : 0;
     const labels = [];
     entries.forEach((e, idx) => {
       const s = sideInfo(r, e.side);
@@ -122,10 +127,11 @@ export function computeHeating(p) {
         x: x - s.nx * 9, y: y - s.ny * 9, load: z.power, horiz: e.side === "n" || e.side === "s",
       });
     });
-    if (entries.length && power < l.Q * 0.95) warnings.push(`${r.name}: radiatorlar ${Math.round(l.Q - power)} W kam beradi.`);
+    if ((entries.length || uf) && power < l.Q * 0.95) warnings.push(`${r.name}: ${uf ? "iliq pol va radiatorlar" : "radiatorlar"} ${Math.round(l.Q - power)} W kam beradi.`);
     const same = labels.every((x) => x === labels[0]);
-    const label = !labels.length ? "yo'q" : same ? `${labels.length} × ${labels[0]}` : labels.join(", ");
-    rooms.push({ r, floor: f, A: l.A, Q: l.Q, power, label, units: entries.length, ti: t.ti, manual: !!r.radManual });
+    let label = !labels.length ? "" : same ? `${labels.length} × ${labels[0]}` : labels.join(", ");
+    if (uf) label = `iliq pol ${Math.round(uf.power)} W` + (label ? ` + ${label}` : "");
+    rooms.push({ r, floor: f, A: l.A, Q: l.Q, power, label: label || "yo'q", units: entries.length, ti: t.ti, manual: !!r.radManual, ufh: uf });
   }
 
   const Q = rooms.reduce((a, x) => a + x.Q, 0);
@@ -142,11 +148,57 @@ export function computeHeating(p) {
   };
   warnings.push(...schemeWarnings(p));
 
+  const ufhRooms = rooms.filter((x) => x.ufh);
+  const collector = p.radScheme === "collector";
+  if (ufhRooms.length && p.circ === "gravity") warnings.push("Iliq pol nasossiz ishlamaydi: aralashtirish uzeli va nasos kerak.");
+  if (ufhRooms.length && p.circ === "hybrid") warnings.push("Elektr uzilganda iliq pol ishlamaydi, faqat radiatorlar isitadi.");
+  if (collector && grav) warnings.push("Nurli (kollektorli) sxema qarshiligi katta, elektrsiz aylanishga mos emas.");
+  out.ufh = []; out.manifolds = []; out.starSegs = []; out.starLens = {};
+
   if (!boiler) {
-    if (rads.length) warnings.push("Qozon qo'yilmagan, quvurlar chizilmadi.");
+    if (rads.length || ufhRooms.length) warnings.push("Qozon qo'yilmagan, quvurlar chizilmadi.");
     return out;
   }
-  const net = multiFloor(p, boiler, rads);
+
+  // Kollektorlar: qo'yilganlari, yetmagan qavatga avtomatik
+  const live = (p.floors || 1);
+  const mans = p.items.filter((i) => i.kind === "manifold" && floorOf(i) < live)
+    .map((i) => ({ id: i.id, x: i.x, y: i.y, floor: floorOf(i), load: 0, ports: 0, ufhPorts: 0, auto: false }));
+  const needF = new Set([...ufhRooms.map((x) => x.floor), ...(collector ? rads.map((r) => r.floor) : [])]);
+  for (const f of needF) {
+    if (mans.some((m) => m.floor === f)) continue;
+    const at = floorOf(boiler) === f ? { x: boiler.x + 80, y: boiler.y } : riserPoint(p, boiler, f);
+    mans.push({ id: `auto-man-${f}`, x: at.x, y: at.y, floor: f, load: 0, ports: 0, ufhPorts: 0, auto: true });
+    warnings.push(`${f + 1}-qavatda kollektor avtomatik joylandi. "Kollektor" asbobi bilan o'zingiz qo'yishingiz mumkin.`);
+  }
+  const nearest = (f, x, y) => mans.filter((m) => m.floor === f).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
+  const cache = new Map(), gridOf = (f) => { if (!cache.has(f)) cache.set(f, buildGrid(fv(p, f))); return cache.get(f); };
+  const star = (m, t, kind) => {
+    const r = routeTree(gridOf(m.floor), m, [t]);
+    const len = r.length;
+    out.starSegs.push(...r.segs.map((s) => ({ ...s, floor: m.floor, kind })));
+    return len;
+  };
+  for (const x of ufhRooms) {
+    const m = nearest(x.floor, x.r.x + x.r.w / 2, x.r.y + x.r.d / 2);
+    const e = entryPoint(x.r, m);
+    const feed = star(m, e, "ufh");
+    const loops = Math.max(1, Math.ceil(x.ufh.len / (MAX_LOOP - 2 * Math.min(feed, 30))));
+    const pipe = x.ufh.len + loops * 2 * feed;
+    m.load += x.ufh.power; m.ports += loops; m.ufhPorts += loops;
+    out.ufh.push({ room: x.r, floor: x.floor, ...x.ufh, loops, feed, pipe, manifold: m.id, pattern: meander(x.r, x.ufh.step, loops) });
+  }
+  if (collector) for (const r of rads) {
+    const m = nearest(r.floor, r.x, r.y);
+    const len = star(m, { x: r.x, y: r.y }, "rad");
+    m.load += r.power; m.ports += 1;
+    out.starLens[r.power > 1500 ? 20 : 16] = (out.starLens[r.power > 1500 ? 20 : 16] || 0) + len * 2;
+  }
+  out.manifolds = mans.filter((m) => m.ports);
+  out.ufhPipe = out.ufh.reduce((a, u) => a + u.pipe, 0);
+
+  const mainTargets = [...(collector ? [] : rads), ...out.manifolds.map((m) => ({ x: m.x, y: m.y, floor: m.floor, load: m.load }))];
+  const net = multiFloor(p, boiler, mainTargets);
   if (!net.ok) warnings.push("Ba'zi radiatorlarga quvur yo'li topilmadi.");
   out.risers = net.risers;
   if (net.risers.some((q) => q.auto)) warnings.push("Stoyak avtomatik joylandi. Reja bo'limida o'zingiz qo'yishingiz mumkin.");
@@ -177,7 +229,7 @@ export function computeHeating(p) {
   // Eng uzun halqa bo'yicha taxminiy qarshilik
   const longest = Math.max(0, ...rads.map((r) => Math.hypot(r.x - boiler.x, r.y - boiler.y) / 100)) * 2.6;
   const volPipes = out.segs.reduce((a, s) => a + (Math.PI / 4) * (s.id / 100) ** 2 * s.len * 2 * 10, 0);
-  out.volume = rads.reduce((a, x) => a + x.litre, 0) + volPipes + 40;
+  out.volume = rads.reduce((a, x) => a + x.litre, 0) + volPipes + 40 + out.ufhPipe * 0.113;
   out.tank = Math.ceil((out.volume * 0.06) / 10) * 10;
   out.vessel = [8, 12, 18, 24, 35, 50, 80].find((v) => v >= (out.volume * 0.04) / (1 - 1.5 / 3)) || 100;
 
@@ -222,7 +274,7 @@ export function schemeParts(p, h) {
 
 export function heatingBom(p, h) {
   const rows = [];
-  if (!h.rads.length) return rows;
+  if (!h.rads.length && !h.ufh?.length) return rows;
   const G = "Isitish", solid = p.fuel === "solid";
   rows.push({ g: G, k: "boiler", name: solid ? "Qattiq yoqilg'i qozoni" : "Gaz qozoni", spec: `${h.boilerKw} kW`, unit: "dona", qty: 1 });
   for (const kind of ["cast", "bimetal"]) {
@@ -242,7 +294,27 @@ export function heatingBom(p, h) {
     rows.push({ g: G, k: "adapter", name: "Po'latdan PPR ga o'tish muftasi", spec: "rezbali", unit: "dona", qty: 2 });
   }
   const conn = h.topSupply ? p.h / 100 + 1 : 2.5;
-  rows.push({ g: G, k: "conn", name: "Radiator ulanishi, PPR PN25", spec: "Ø25", unit: "m", qty: Math.ceil(h.rads.length * conn) });
+  if (h.rads.length && p.radScheme !== "collector") rows.push({ g: G, k: "conn", name: "Radiator ulanishi, PPR PN25", spec: "Ø25", unit: "m", qty: Math.ceil(h.rads.length * conn) });
+  for (const [dn, len] of Object.entries(h.starLens || {})) {
+    rows.push({ g: G, k: "pexal" + dn, name: "Metalloplastik quvur, kollektordan radiatorga", spec: `${dn}×2`, unit: "m", qty: Math.ceil(len * 1.1) });
+  }
+  for (const m of h.manifolds || []) {
+    rows.push({ g: G, k: `man_${m.ports}`, name: "Kollektor, rasxodomer va kranlar bilan", spec: `${m.ports} chiqishli`, unit: "dona", qty: 1 });
+    rows.push({ g: G, k: "mancab", name: "Kollektor shkafi", spec: "devorga", unit: "dona", qty: 1 });
+    if (m.ufhPorts) rows.push({ g: G, k: "mix", name: "Iliq pol aralashtirish uzeli, nasosi bilan", spec: p.ufhRegime || "45/35", unit: "dona", qty: 1 });
+  }
+  if (h.ufh?.length) {
+    const area = h.ufh.reduce((a, u) => a + u.room.w * u.room.d / 1e4, 0);
+    const per = h.ufh.reduce((a, u) => a + 2 * (u.room.w + u.room.d) / 100, 0);
+    const G2 = "Iliq pol";
+    rows.push({ g: G2, k: "pex16", name: "PEX quvur, kislorod to'sig'i bilan", spec: "16×2", unit: "m", qty: Math.ceil(h.ufhPipe * 1.05) });
+    rows.push({ g: G2, k: "eps", name: "Issiqlik izolyatsiyasi plitasi", spec: "30 mm", unit: "m²", qty: Math.ceil(area * 1.05) });
+    rows.push({ g: G2, k: "damper", name: "Demfer lenta", spec: "devor bo'ylab", unit: "m", qty: Math.ceil(per) });
+    rows.push({ g: G2, k: "clips", name: "Quvur mahkamlagich", spec: "", unit: "dona", qty: Math.ceil(h.ufhPipe * 3) });
+    rows.push({ g: G2, k: "screed", name: "Beton qoplama (styajka)", spec: "50 mm", unit: "m²", qty: Math.ceil(area) });
+    rows.push({ g: "Isitish ishi", k: "l_ufh", name: "Iliq pol yotqizish", unit: "m²", qty: Math.ceil(area), labor: true });
+  }
+  if (h.manifolds?.length) rows.push({ g: "Isitish ishi", k: "l_man", name: "Kollektorni o'rnatish va sozlash", unit: "dona", qty: h.manifolds.length, labor: true });
   rows.push({ g: G, k: "filter", name: "Loyqa filtr va kranlar", spec: "qozon uchun", unit: "to'plam", qty: 1 });
   if (p.circ !== "gravity") {
     rows.push({ g: G, k: "pump", name: "Aylanma nasos", spec: "25-60", unit: "dona", qty: 1 });
@@ -258,7 +330,7 @@ export function heatingBom(p, h) {
     if (solid) rows.push({ g: G, k: "thermal", name: "Termik to'kish klapani", spec: "95 °C", unit: "dona", qty: 1 });
   }
   rows.push({ g: "Isitish ishi", k: "l_boiler", name: "Qozonni o'rnatish va ulash", unit: "dona", qty: 1, labor: true });
-  rows.push({ g: "Isitish ishi", k: "l_rad", name: "Radiatorni osish va ulash", unit: "dona", qty: h.rads.length, labor: true });
+  if (h.rads.length) rows.push({ g: "Isitish ishi", k: "l_rad", name: "Radiatorni osish va ulash", unit: "dona", qty: h.rads.length, labor: true });
   if (h.risers?.length) rows.push({ g: "Isitish ishi", k: "l_riser", name: "Qavatlararo stoyak", unit: "dona", qty: h.risers.length * 2, labor: true });
   rows.push({ g: "Isitish ishi", k: "l_pipe", name: "Quvur yotqizish", unit: "m", qty: Math.ceil((h.pipeTotal || 0) * 1.1), labor: true });
   rows.push({ g: "Isitish ishi", k: "l_start", name: "Sinov va ishga tushirish", unit: "dona", qty: 1, labor: true });

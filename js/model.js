@@ -21,6 +21,7 @@ export const ITEM_KINDS = {
   stairs: { name: "Zina", group: "build", w: 100, d: 300, color: "#9c7a58" },
   riser: { name: "Stoyak", group: "build", w: 30, d: 30, color: "#55636b", round: true },
   boiler: { name: "Qozon", group: "heat", w: 60, d: 80, color: "#c9611c" },
+  manifold: { name: "Kollektor", group: "heat", w: 60, d: 14, color: "#b0862b" },
   panel: { name: "Elektr shchiti", group: "elec", w: 40, d: 12, color: "#3b4a55" },
   jbox: { name: "Taqsimlash korobkasi", group: "elec", w: 22, d: 22, color: "#7a4fa3" },
   light: { name: "Chiroq", group: "elec", w: 26, d: 26, color: "#c79a1e", round: true },
@@ -86,6 +87,10 @@ export function emptyProject() {
     elecMode: "box",
     cableMetal: "cu",  // cu: mis, al: alyuminiy
     groupCable: {},    // guruh nomi bo'yicha qo'lda tanlangan kesim, mm²
+    radScheme: "tree", // tree: troynikli, collector: kollektordan nurli
+    ufhRegime: "45/35",
+    ufhStep: 15,
+    ufhCover: "tile",
     radType: "cast",   // cast, bimetal yoki panel
     panelType: 22,
     panelH: 500,

@@ -121,6 +121,9 @@ input:not([type=checkbox]), select { font: 14px var(--body); padding: 5px 7px; b
 #plan .rad { fill: var(--panel); stroke: var(--fg); stroke-width: 2.5; cursor: move; }
 #plan .rad.panel { fill: color-mix(in srgb, var(--fg) 12%, var(--panel)); }
 #plan .rad.s { stroke: var(--accent); stroke-width: 5; }
+#plan .pu { stroke: var(--hot); stroke-width: 1.5; opacity: .55; }
+#plan .thin { stroke-width: 2; }
+#plan .man { fill: #b0862b; stroke: var(--panel); stroke-width: 2; stroke-dasharray: 6 4; }
 .gsel { width: auto; padding: 2px 4px; font-size: 12px; }
 .mini small { color: var(--muted); }
 #plan .rl { font: 500 16px var(--mono); fill: var(--fg); text-anchor: middle; pointer-events: none; }

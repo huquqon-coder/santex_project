@@ -1,5 +1,6 @@
 import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, WALL_MATERIALS, emptyProject, mountH, normalize, sampleProject, uid } from "./model.js";
 import { PANEL_HEIGHTS, PANEL_TYPES, RAD_KINDS } from "./radiators.js";
+import { COVERS, STEPS } from "./ufh.js";
 import { METALS, SECTIONS, lightOf, watts } from "./electric.js";
 import { Editor } from "./editor.js";
 import { floorList, floorOf, fv, overlaps } from "./geometry.js";
@@ -12,7 +13,7 @@ const $ = (id) => document.getElementById(id);
 const KEY = "santex-loyiha";
 const TOOLS = {
   plan: [["select", "Tanlash"], ["room", "Xona chizish"], ["door", "Ichki eshik"], ["entry", "Kirish eshigi"], ["window", "Deraza"], ["stairs", "Zina"], ["riser", "Stoyak"]],
-  heat: [["select", "Tanlash"], ["boiler", "Qozon"], ["rad", "Radiator qo'shish"]],
+  heat: [["select", "Tanlash"], ["boiler", "Qozon"], ["rad", "Radiator qo'shish"], ["manifold", "Kollektor"]],
   elec: [["select", "Tanlash"], ["panel", "Shchit"], ["jbox", "Korobka"], ["light", "Chiroq"], ["switch", "Viklyuchatel"], ["socket", "Rozetka"], ["power", "Quvvatli rozetka"]],
   plumb: [["select", "Tanlash"], ["waterin", "Suv kirishi"], ["sewerout", "Kanalizatsiya chiqishi"], ["sink", "Rakovina"], ["toilet", "Unitaz"], ["bathtub", "Vanna"], ["shower", "Dush"], ["washer", "Kir mashinasi"], ["heater", "Suv isitkich"]],
 };
@@ -151,6 +152,9 @@ function selectionHtml() {
     return `<h2>Xona</h2>` + field("rName", "Nomi", `<input id="rName" value="${r.name.replace(/"/g, "&quot;")}">`) +
       field("rType", "Turi", sel("rType", Object.entries(ROOM_TYPES).map(([k, v]) => [k, v.name]), r.type)) +
       `<div class="row">` + field("rW", "Eni, sm", numI("rW", r.w, 100, 3000)) + field("rD", "Bo'yi, sm", numI("rD", r.d, 100, 3000)) + `</div>` +
+      (ROOM_TYPES[r.type].heated ? `<label class="chk"><input type="checkbox" id="rUfh" ${r.ufh ? "checked" : ""}> Iliq pol</label>` +
+        (r.ufh ? `<div class="row">` + field("rUfhStep", "Qadam, sm", sel("rUfhStep", [["", "Loyiha"], ...STEPS.map((s) => [String(s), String(s)])], String(r.ufhStep || ""))) +
+          field("rUfhCover", "Qoplama", sel("rUfhCover", [["", "Loyiha"], ...Object.entries(COVERS).map(([k, v]) => [k, v.name])], r.ufhCover || "")) + `</div>` : "") : "") +
       `<button class="del" id="del">Xonani o'chirish</button>`;
   }
   if (s.type === "open") {
@@ -218,6 +222,7 @@ function resultHtml() {
       field("pLoop", "Tizim turi", sel("pLoop", [["open", "Ochiq (bak cherdakda)"], ["closed", "Yopiq (membranali bak)"]], p.loop)) +
       field("pFuel", "Qozon", sel("pFuel", [["solid", "Qattiq yoqilg'i"], ["gas", "Gaz"]], p.fuel)) +
       field("pReg", "Suv rejimi", sel("pReg", [["80/60", "80 / 60 °C"], ["75/60", "75 / 60 °C"], ["70/55", "70 / 55 °C"]], p.regime)) +
+      field("pScheme", "Radiatorlarni ulash", sel("pScheme", [["tree", "Troynikli (ketma-ket)"], ["collector", "Kollektordan (nurli)"]], p.radScheme || "tree")) +
       field("pRad", "Radiatorlar", sel("pRad", Object.entries(RAD_KINDS).map(([k, v]) => [k, v.name]), p.radType || "cast")) +
       (p.radType === "panel" ? `<div class="row">` + field("pPtype", "Panel turi", sel("pPtype", PANEL_TYPES.map((t) => [String(t), String(t)]), String(p.panelType || 22))) +
         field("pPh", "Balandligi, mm", sel("pPh", PANEL_HEIGHTS.map((t) => [String(t), String(t)]), String(p.panelH || 500))) + `</div>` : "") +
@@ -226,8 +231,17 @@ function resultHtml() {
       (g ? `<dt>Bosim / qarshilik</dt><dd>${fmt(g.head)} / ${fmt(g.loss)} Pa</dd>` : "") + `</dl>` +
       (g ? `<p class="${g.ok ? "good" : "bad"}">${g.ok ? "Elektrsiz suv aylanadi." : "Elektrsiz aylanish yetmaydi."}</p>` : "") +
       `<h3>Tizim tarkibi</h3><ul class="comp">${schemeParts(p, h).map((x) => `<li>${x}</li>`).join("")}</ul>` +
-      `<table class="mini"><tr><th>Xona</th><th>W</th><th>Radiator</th></tr>${h.rooms.map((x) => `<tr><td>${x.r.name}${x.manual ? " ✎" : ""}</td><td>${fmt(x.Q)}</td><td>${x.label}</td></tr>`).join("")}</table>` +
-      `<p class="hint">✎ belgili xonalarda radiatorlar qo'lda boshqariladi. Radiatorni bosib suring yoki o'lchamini o'zgartiring.</p>` + warningsHtml(h.warnings);
+      `<table class="mini"><tr><th>Xona</th><th>W</th><th>Isitish</th><th>Iliq pol</th></tr>${h.rooms.map((x) =>
+        `<tr><td>${x.r.name}${x.manual ? " ✎" : ""}</td><td>${fmt(x.Q)}</td><td>${x.label}</td>` +
+        `<td><input type="checkbox" data-ufh="${x.r.id}" ${x.r.ufh ? "checked" : ""} aria-label="${x.r.name} iliq pol"></td></tr>`).join("")}</table>` +
+      `<p class="hint">✎ belgili xonalarda radiatorlar qo'lda boshqariladi. Radiatorni bosib suring yoki o'lchamini o'zgartiring.</p>` +
+      (h.ufh.length || p.radScheme === "collector" ? `<h3>Iliq pol va kollektor</h3>` +
+        field("pUfhReg", "Iliq pol suv rejimi", sel("pUfhReg", [["45/35", "45 / 35 °C"], ["50/40", "50 / 40 °C"], ["40/30", "40 / 30 °C"]], p.ufhRegime || "45/35")) +
+        `<div class="row">` + field("pUfhStep", "Quvur qadami, sm", sel("pUfhStep", STEPS.map((s) => [String(s), String(s)]), String(p.ufhStep || 15))) +
+        field("pUfhCover", "Pol qoplamasi", sel("pUfhCover", Object.entries(COVERS).map(([k, v]) => [k, v.name]), p.ufhCover || "tile")) + `</div>` +
+        (h.ufh.length ? `<table class="mini"><tr><th>Xona</th><th>W/m²</th><th>Kontur</th><th>Quvur, m</th></tr>${h.ufh.map((u) => `<tr><td>${u.room.name}</td><td>${fmt(u.q)}${u.limited ? "*" : ""}</td><td>${u.loops}</td><td>${fmt(u.pipe)}</td></tr>`).join("")}</table>` +
+          (h.ufh.some((u) => u.limited) ? `<p class="hint">* pol yuzasi harorat chegarasiga yetdi, bundan ko'p bera olmaydi.</p>` : "") : "") +
+        `<dl class="u">${h.manifolds.map((m, i) => `<dt>Kollektor ${i + 1}${m.auto ? " (avto)" : ""}, ${m.floor + 1}-qavat</dt><dd>${m.ports} chiqish</dd>`).join("")}</dl>` : "") + warningsHtml(h.warnings);
   }
   if (tab === "elec") {
     const e = res.elec;
@@ -282,6 +296,11 @@ $("tools").addEventListener("click", (e) => {
 $("side").addEventListener("change", (e) => {
   const { p, sel: s } = ctx, id = e.target.id, v = e.target.value, n = +v;
   ctx.commit();
+  if (e.target.dataset.ufh) {
+    const room = p.rooms.find((x) => x.id === e.target.dataset.ufh);
+    if (room) room.ufh = e.target.checked;
+    return ctx.changed();
+  }
   if (e.target.dataset.g) {
     p.groupCable = p.groupCable || {};
     if (v) p.groupCable[e.target.dataset.g] = n; else delete p.groupCable[e.target.dataset.g];
@@ -299,6 +318,8 @@ $("side").addEventListener("change", (e) => {
     pName: () => (p.name = v), pH: () => (p.h = n), pT: () => (p.wallT = n), pMat: () => (p.wallMaterial = v),
     pIns: () => (p.ins = n), pOut: () => (p.tout = n), pReg: () => (p.regime = v),
     pFloors: () => { p.floors = n; view3dFramed = false; }, pSlab: () => (p.slab = n),
+    pScheme: () => (p.radScheme = v), pUfhReg: () => (p.ufhRegime = v), pUfhStep: () => (p.ufhStep = n), pUfhCover: () => (p.ufhCover = v),
+    rUfh: () => (r.ufh = e.target.checked), rUfhStep: () => (r.ufhStep = opt(v)), rUfhCover: () => (r.ufhCover = v || undefined),
     pRad: () => (p.radType = v), pPtype: () => (p.panelType = n), pPh: () => (p.panelH = n), pMetal: () => (p.cableMetal = v),
     rKind: () => { rd.kind = v || undefined; rd.size = undefined; },
     rSize: () => (rd.size = opt(v)), rPtype: () => (rd.ptype = opt(v)), rPh: () => (rd.ph = opt(v)),

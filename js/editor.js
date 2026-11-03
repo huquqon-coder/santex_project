@@ -20,6 +20,11 @@ function symbol(kind, k) {
       for (let y = -d + 25; y < d; y += 25) s += `<path d="M${-w} ${y}H${w}"/>`;
       return s;
     }
+    case "manifold": {
+      let s = `<path d="M${-w + 4} -3H${w - 4}M${-w + 4} 3H${w - 4}"/>`;
+      for (let x = -w + 10; x < w - 4; x += 10) s += `<path d="M${x} ${-d}V${d}"/>`;
+      return s;
+    }
     case "riser": return `<circle r="${w - 6}"/><path d="M-9 -9L9 9M9 -9L-9 9"/>`;
     case "sink": return `<ellipse cx="0" cy="3" rx="${w - 6}" ry="${d - 6}"/><circle cx="0" cy="3" r="3"/>`;
     case "toilet": return `<rect x="${-w}" y="${-d}" width="${k.w}" height="16"/><ellipse cx="0" cy="10" rx="${w - 3}" ry="${d - 14}"/>`;
@@ -332,6 +337,13 @@ export class Editor {
     const f = this.ctx.floor;
     for (const s of h.segs.filter((q) => onFloor(q, f))) { o.push(this.line(s.pts, "ph", -5)); o.push(this.line(s.pts, "pc", 5)); }
     for (const q of h.risers || []) o.push(`<circle class="rs2" cx="${q.x}" cy="${q.y}" r="13"><title>Stoyak</title></circle>`);
+    for (const u of (h.ufh || []).filter((q) => onFloor(q, f))) {
+      for (const pts of u.pattern) o.push(this.line(pts, "pu"));
+    }
+    for (const s of (h.starSegs || []).filter((q) => onFloor(q, f))) { o.push(this.line(s.pts, "ph thin", -3)); o.push(this.line(s.pts, "pc thin", 3)); }
+    for (const m of (h.manifolds || []).filter((q) => onFloor(q, f) && q.auto)) {
+      o.push(`<rect class="man" x="${m.x - 30}" y="${m.y - 7}" width="60" height="14"><title>Kollektor (avtomatik), ${m.ports} chiqish</title></rect>`);
+    }
     const sel = this.ctx.sel;
     for (const r of h.rads.filter((q) => onFloor(q, f))) {
       const W = r.horiz ? r.w : 16, D = r.horiz ? 16 : r.w, s = sel?.type === "rad" && sel.id === r.id;

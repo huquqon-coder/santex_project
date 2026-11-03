@@ -268,7 +268,7 @@ export class View3D {
   items(p, res, opt, wallH, f, step) {
     for (const i of p.items) {
       const k = ITEM_KINDS[i.kind];
-      if (!k || i.kind === "jbox" || i.kind === "boiler" || i.kind === "riser") continue;
+      if (!k || i.kind === "jbox" || i.kind === "boiler" || i.kind === "riser" || i.kind === "manifold") continue;
       if (i.kind === "stairs") {
         if (floorOf(i) !== f) continue;
         const s = P.stairs(m(k.w), m(k.d), step);
@@ -321,6 +321,20 @@ export class View3D {
       this.tube(new THREE.Vector3(bx, yRet, bz), new THREE.Vector3(bx, yB, bz), 0.012, this.mat.blue);
       this.place(P.ballValve(), ax, yT + 0.1, az, ix, iz);
       this.place(P.ballValve(), bx, yB - 0.03, bz, ix, iz);
+    }
+    // Iliq pol konturlari pol ustida chiziq bo'lib, kollektor yo'llari ingichka quvur bo'lib chiziladi
+    for (const u of (h.ufh || []).filter((q) => q.floor === f)) {
+      for (const pts of u.pattern) {
+        const g = new THREE.BufferGeometry().setFromPoints(pts.map((q) => new THREE.Vector3(m(q[0]), 0.012, m(q[1]))));
+        this.group.add(new THREE.Line(g, this.ufhLine || (this.ufhLine = new THREE.LineBasicMaterial({ color: 0xd8392c }))));
+      }
+    }
+    for (const s of (h.starSegs || []).filter((q) => floorOf(q) === f)) {
+      this.run(s.pts, 0.03, 0.008, this.mat.hot, -3); this.run(s.pts, 0.03, 0.008, this.mat.blue, 3);
+    }
+    for (const mf of (h.manifolds || []).filter((q) => q.floor === f)) {
+      const w = nearestWall(p, mf.x, mf.y);
+      this.place(P.manifold(mf.ports), m(w.x), 0.25, m(w.y), w.ix, w.iz);
     }
     const b = h.boiler;
     if (!b || floorOf(b) !== f) return;

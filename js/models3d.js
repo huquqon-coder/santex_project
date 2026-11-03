@@ -344,6 +344,24 @@ export function stairs(w, d, rise) {
   return g;
 }
 
+// Kollektor: ikki latun taroq, rasxodomerlar va kranlar, shkaf ichida
+export function manifold(ports) {
+  const g = G(), n = Math.max(2, ports), w = 0.1 + n * 0.05;
+  B(g, w + 0.16, 0.7, 0.12, M.white, 0, 0, -0.06).material = M.frame;
+  for (const [y, mat] of [[0.48, M.red], [0.3, M.blue]]) {
+    C(g, 0.016, w, M.brass, 0, y, 0.03, "x");
+    C(g, 0.02, 0.05, mat, -w / 2 - 0.03, y, 0.03, "x");
+    for (let i = 0; i < n; i++) {
+      const x = -w / 2 + 0.05 + i * 0.05;
+      C(g, 0.008, 0.12, M.brass, x, y - 0.07, 0.03);
+      if (y > 0.4) C(g, 0.011, 0.06, M.glass, x, y + 0.05, 0.03);
+      else C(g, 0.012, 0.03, M.white, x, y + 0.03, 0.03);
+    }
+  }
+  C(g, 0.01, 0.04, M.chrome, w / 2 + 0.01, 0.52, 0.03);
+  return g;
+}
+
 /* Isitish armaturasi */
 export function ballValve() {
   const g = G();
