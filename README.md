@@ -1,4 +1,4 @@
-# Uy Konstruktor
+# Projecty — uy konstruktori
 
 Bir yoki ikki qavatli uy rejasini chizib, isitish, elektr va santexnika tizimlarini loyihalash uchun sayt. Yig'ish bosqichi yo'q: oddiy HTML, CSS va JS modullari.
 
@@ -12,7 +12,7 @@ Bir yoki ikki qavatli uy rejasini chizib, isitish, elektr va santexnika tizimlar
 - **Elektr:** guruhlarga bo'lish, avtomat va kabel tanlash, taqsimlash korobkasi bilan yoki korobkasiz montaj. Chiroq turlari, o'rnatish balandligi, mis yoki alyuminiy sim, kesim va kuchlanish tushishi. Korobkadan viklyuchatel, chiroq va rozetkaga ulanish sxemasi, qaysi viklyuchatel qaysi chiroqni yoqishi.
 - **Santexnika:** shahar suvi yoki suv bochkasi (yerda, tagkursida, tomda, nasos stansiyasi bilan), bosim tekshiruvi. Sovuq va issiq suv quvuri diametri, kranlar va fitinglar. Kanalizatsiya diametri, nishabligi, chiqishdagi chuqurlik, reviziyalar va ventilyatsiya stoyagi.
 - **3D:** uy va tizimlarning aylantiriladigan modeli.
-- **Hisob:** materiallar ro'yxati va narx, chop etish.
+- **Hisob:** materiallar ro'yxati va narx, qo'lda qator qo'shish, chop etish. Projecty brendi va logosi bilan Excel (.xlsx) va PDF fayl qilib yuklab olish.
 
 Loyiha brauzerda avtomatik saqlanadi va JSON fayl qilib yuklab olinadi.
 

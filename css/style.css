@@ -19,6 +19,14 @@ html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--body); display: flex; flex-direction: column; }
 h1, h2, h3 { font-family: var(--display); font-weight: 600; margin: 0; letter-spacing: .01em; }
 h1 { font-size: 25px; white-space: nowrap; }
+.brand { display: flex; align-items: center; gap: 8px; line-height: 1; }
+.brand .mark { width: 30px; height: 30px; flex: none; }
+.brand .mark rect { fill: #9c5219; }
+.brand .mark path { fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.brand .mark path.p { stroke-width: 2.6; }
+.brand small { font: 500 12px var(--body); color: var(--muted); letter-spacing: 0; align-self: flex-end; margin-bottom: 3px; }
+.repacts { display: flex; gap: 6px; }
+.printbrand { display: none; }
 h2 { font-size: 20px; }
 h3 { font-size: 16px; }
 .top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
@@ -167,6 +175,8 @@ input:not([type=checkbox]), select { font: 14px var(--body); padding: 5px 7px; b
 @media print {
   .top, #tools, aside, .rephead button, .addrow, .xdel { display: none !important; }
   .rep input { border: 0; background: none; }
+  .printbrand { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 2px solid #9c5219; padding-bottom: 8px; margin-bottom: 12px; font-size: 11px; color: #56666d; }
+  .repacts { display: none !important; }
   body { background: #fff; color: #000; }
   .canvas { border: 0; overflow: visible; }
   #reportWrap { position: static; }

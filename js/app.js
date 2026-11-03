@@ -7,7 +7,7 @@ import { floorList, floorOf, fv, overlaps } from "./geometry.js";
 import { computeHeating, heatingBom, schemeParts } from "./heating.js";
 import { computeElectric, electricBom } from "./electric.js";
 import { computePlumbing, plumbingBom, pumped } from "./plumbing.js";
-import { EXTRA_GROUP, renderReport } from "./report.js";
+import { EXTRA_GROUP, priceOf, renderReport } from "./report.js";
 
 const $ = (id) => document.getElementById(id);
 const KEY = "santex-loyiha";
@@ -327,10 +327,12 @@ function renderSide() {
   $("side").innerHTML = selectionHtml() + resultHtml();
 }
 
+let repRows = [];
 function renderRep() {
   const { p, res } = ctx;
   const extras = (p.extras || []).map((x) => ({ g: x.g || EXTRA_GROUP, k: "x_" + x.id, name: x.name, spec: x.spec, unit: x.unit, qty: x.qty, labor: !!x.labor, extra: x.id }));
   const rows = [...heatingBom(p, res.heat), ...electricBom(p, res.elec), ...plumbingBom(p, res.plumb), ...extras];
+  repRows = rows;
   renderReport($("report"), rows, p.prices, (k, v) => { p.prices[k] = v; save(); }, {
     onAdd: (x, price) => {
       ctx.commit();
@@ -475,6 +477,16 @@ $("file").onchange = async (e) => {
   e.target.value = "";
 };
 $("print").onclick = () => print();
+// Hisobni Projecty brendi bilan yuklab olish
+const exportRep = async (kind) => {
+  if (!repRows.length) renderRep();
+  const { exportPdf, exportXlsx } = await import("./export.js");
+  const price = (r) => priceOf(r, ctx.p.prices);
+  try { await (kind === "pdf" ? exportPdf : exportXlsx)(repRows, price, { name: ctx.p.name }); }
+  catch (e) { console.error(e); alert("Fayl tayyorlanmadi: " + e.message); }
+};
+$("xlsx").onclick = () => exportRep("xlsx");
+$("pdf").onclick = () => exportRep("pdf");
 document.querySelectorAll("#view3dWrap input").forEach((c) => c.addEventListener("change", () => show3D()));
 $("modes").addEventListener("click", (e) => {
   if (!e.target.dataset.m) return;

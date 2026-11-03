@@ -11,8 +11,10 @@ const num = (v) => Math.round(v).toLocaleString("ru-RU").replace(/ /g, " ");
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 // rows: hisoblangan qatorlar; qo'lda qo'shilganlarida extra: id bo'ladi
+export const priceOf = (r, prices) => prices[r.k] ?? (r.labor ? LABOR[r.k] ?? 0 : 0);
+
 export function renderReport(el, rows, prices, onPrice, extra = {}) {
-  const price = (r) => prices[r.k] ?? (r.labor ? LABOR[r.k] ?? 0 : 0);
+  const price = (r) => priceOf(r, prices);
   const sum = (f) => rows.filter(f).reduce((a, r) => a + r.qty * price(r), 0);
   const groups = [...new Set(rows.map((r) => r.g))];
   let h = `<div class="kpis" id="rep-kpis"></div><table class="rep"><thead><tr><th>Nomi</th><th>O'lchami</th><th>Miqdori</th><th>Narxi, so'm</th><th>Summa, so'm</th></tr></thead>`;
