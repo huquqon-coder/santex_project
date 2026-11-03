@@ -17,6 +17,13 @@ export const WALL_MATERIALS = {
   aerated: { name: "Gazoblok", lam: 0.2 },
 };
 
+// Devor rangi 3D ko'rinishda: tayyor ranglar va standart
+export const WALL_COLOR = "#ece7dc";
+export const WALL_COLORS = [
+  ["#ece7dc", "Oqish"], ["#f6f3ec", "Oq"], ["#e8d9b8", "Qum"], ["#d9c19a", "Och jigarrang"],
+  ["#c98f6b", "G'isht"], ["#b7c4b0", "Zaytun"], ["#a9bfcf", "Havorang"], ["#9aa0a3", "Kulrang"],
+];
+
 export const ITEM_KINDS = {
   stairs: { name: "Zina", group: "build", w: 100, d: 300, color: "#9c7a58" },
   riser: { name: "Stoyak", group: "build", w: 30, d: 30, color: "#55636b", round: true },
@@ -89,6 +96,7 @@ export function emptyProject() {
     slab: 30,
     tout: -15,
     wallMaterial: "brick",
+    wallColor: WALL_COLOR,
     wallT: 40,
     ins: 0,
     regime: "80/60",

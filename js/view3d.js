@@ -1,5 +1,5 @@
 // 3D ko'rinish. Ma'lumot rejadan olinadi, o'lchamlar metrga o'tkaziladi.
-import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, TANK_DIAM, mountH, tankBase } from "./model.js";
+import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, TANK_DIAM, WALL_COLOR, mountH, tankBase } from "./model.js";
 import { pumped } from "./plumbing.js";
 import { bounds, floorList, floorOf, fv, nearestWall, openingRect, roomAt, sideInfo, wallBoxes } from "./geometry.js";
 import * as P from "./models3d.js";
@@ -121,6 +121,7 @@ export class View3D {
     this.groundMesh = g; this.scene.add(g);
   }
   update(all, res, opt) {
+    this.mat.wall.color.set(all.wallColor || WALL_COLOR);
     while (this.root.children.length) {
       const o = this.root.children.pop();
       o.traverse?.((n) => n.geometry?.dispose());

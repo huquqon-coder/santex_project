@@ -1,4 +1,4 @@
-import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, TANK_PLACES, TANK_VOLUMES, WALL_MATERIALS, emptyProject, mountH, normalize, sampleProject, tankBase, uid } from "./model.js";
+import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, TANK_PLACES, TANK_VOLUMES, WALL_COLOR, WALL_COLORS, WALL_MATERIALS, emptyProject, mountH, normalize, sampleProject, tankBase, uid } from "./model.js";
 import { PANEL_HEIGHTS, PANEL_TYPES, RAD_KINDS } from "./radiators.js";
 import { COVERS, STEPS } from "./ufh.js";
 import { CABLE_SPECS, METALS, SECTIONS, busCount, lightOf, watts } from "./electric.js";
@@ -258,6 +258,9 @@ function resultHtml() {
       (many ? field("pSlab", "Yopma, sm", numI("pSlab", p.slab, 15, 50, 5)) : "") + `</div>` + copy +
       `<div class="row">` + field("pH", "Shift, sm", numI("pH", p.h, 240, 500)) + field("pT", "Devor, sm", numI("pT", p.wallT, 10, 80)) + `</div>` +
       field("pMat", "Devor materiali", sel("pMat", Object.entries(WALL_MATERIALS).map(([k, v]) => [k, v.name]), p.wallMaterial)) +
+      `<div class="f"><label for="pWallC">Devor rangi (3D)</label><div class="swatches">` +
+      WALL_COLORS.map(([c, n]) => `<button type="button" class="sw" data-wc="${c}" style="background:${c}" title="${n}" aria-label="${n}" aria-pressed="${(p.wallColor || WALL_COLOR) === c}"></button>`).join("") +
+      `<input type="color" id="pWallC" value="${p.wallColor || WALL_COLOR}" aria-label="Boshqa rang"></div></div>` +
       field("pIns", "Izolyatsiya", sel("pIns", [["0", "Yo'q"], ["5", "5 sm"], ["10", "10 sm"]], String(p.ins))) +
       field("pOut", "Tashqi harorat, °C", numI("pOut", p.tout, -40, 5, 1));
   }
@@ -389,7 +392,7 @@ $("side").addEventListener("change", (e) => {
     rName: () => (r.name = v), rW: () => (r.w = n), rD: () => (r.d = n),
     rType: () => { r.type = v; r.name = ROOM_TYPES[v].name; },
     oW: () => (o.w = n), oH: () => (o.h = n), oS: () => (o.sill = n),
-    pName: () => (p.name = v), pH: () => (p.h = n), pT: () => (p.wallT = n), pMat: () => (p.wallMaterial = v),
+    pName: () => (p.name = v), pWallC: () => (p.wallColor = v), pH: () => (p.h = n), pT: () => (p.wallT = n), pMat: () => (p.wallMaterial = v),
     pIns: () => (p.ins = n), pOut: () => (p.tout = n), pReg: () => (p.regime = v),
     pFloors: () => { p.floors = n; view3dFramed = false; }, pSlab: () => (p.slab = n),
     pScheme: () => (p.radScheme = v), pUfhReg: () => (p.ufhRegime = v), pUfhStep: () => (p.ufhStep = n), pUfhCover: () => (p.ufhCover = v),
@@ -412,6 +415,7 @@ $("side").addEventListener("change", (e) => {
 $("side").addEventListener("click", (e) => {
   if (e.target.id === "del") removeSel();
   if (e.target.id === "copyFloor") copyFloor();
+  if (e.target.dataset.wc) { ctx.commit(); ctx.p.wallColor = e.target.dataset.wc; ctx.changed(); }
   if (e.target.id === "radReset") {
     const rd = (ctx.p.radiators || []).find((x) => x.id === ctx.sel?.id);
     if (!rd) return;
