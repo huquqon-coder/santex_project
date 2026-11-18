@@ -8,6 +8,8 @@ import { crossings, treeFittings } from "./fittings.js";
 export const FIX = {
   sink: { name: "Rakovina", cold: 0.1, hot: 0.1, drain: 50, need: 2, tap: 1.0, conn: 0.55 },
   toilet: { name: "Unitaz", cold: 0.1, hot: 0, drain: 110, need: 1, tap: 0.2, conn: 0.2 },
+  squat: { name: "Chashagen", cold: 0.1, hot: 0, drain: 110, need: 1, tap: 1.5, conn: 1.5 },
+  wudu: { name: "Tahorat joyi", cold: 0.1, hot: 0.1, drain: 50, need: 2, tap: 0.6, conn: 0.6 },
   bathtub: { name: "Vanna", cold: 0.15, hot: 0.15, drain: 50, need: 2, tap: 0.8, conn: 0.8 },
   shower: { name: "Dush", cold: 0.12, hot: 0.12, drain: 50, need: 3, tap: 2.0, conn: 1.1 },
   washer: { name: "Kir yuvish mashinasi", cold: 0.15, hot: 0, drain: 50, need: 5, tap: 0.8, conn: 0.8 },
@@ -142,7 +144,7 @@ export function computePlumbing(p) {
     }
     out.cleanouts.push({ x: outlet.x, y: outlet.y, floor: base, why: "uydan chiqishda" });
     // Ventilyatsiya stoyagi: unitaz yonida, bo'lmasa eng uzoq jihozda
-    const toilet = fx.find((f) => f.kind === "toilet");
+    const toilet = fx.find((f) => f.kind === "toilet" || f.kind === "squat");
     const far = targets.filter((q) => floorOf(q) === base).sort((a, b) => (b.walk || 0) - (a.walk || 0))[0];
     const at = t.risers[0] || toilet || far?.f;
     if (at) {
@@ -235,17 +237,20 @@ export function plumbingBom(p, w) {
 
   // Jihozlarni ulash armaturasi. Rakovina aralashtirgichi shlangi bilan, vanna va dush aralashtirgichi ekssentrigi bilan,
   // suv isitkich xavfsizlik klapani bilan keladi
-  push("anglev", "Burchakli kran", "1/2\" × 1/2\"", "dona", n("sink") * 2 + n("toilet"));
-  push("flexh", "Moslashuvchan shlang (unitaz va suv isitkichga)", "1/2\", 40–60 sm", "dona", n("toilet") + n("heater") * 2);
-  push("mixer", "Aralashtirgich (smesitel)", "", "dona", n("sink") + n("bathtub") + n("shower"));
+  push("anglev", "Burchakli kran", "1/2\" × 1/2\"", "dona", n("sink") * 2 + n("toilet") + n("squat"));
+  push("flexh", "Moslashuvchan shlang (unitaz, bachok va suv isitkichga)", "1/2\", 40–60 sm", "dona", n("toilet") + n("squat") + n("heater") * 2);
+  push("cistern", "Yuvish bachogi, chashagen uchun, quvuri bilan", "", "dona", n("squat"));
+  push("sqtrap", "Chashagen sifoni (tirsak)", "Ø110", "dona", n("squat"));
+  push("floortrap", "Pol trapi, tahorat joyi uchun", "Ø50", "dona", n("wudu"));
+  push("mixer", "Aralashtirgich (smesitel)", "", "dona", n("sink") + n("bathtub") + n("shower") + n("wudu"));
   push("washv", "Kir mashinasi krani", "1/2\" × 3/4\"", "dona", n("washer"));
   if (n("heater")) push("heatval", "Suv isitkich kranlari", "1/2\"", "dona", n("heater") * 2);
 
   // Kanalizatsiya
   for (const dn of Object.keys(w.sewerLen).sort((a, b) => a - b)) push("pvc" + dn, "PVX kanalizatsiya quvuri", `Ø${dn}`, "m", w.sewerLen[dn] * 1.1);
   const fs = w.fit.sewer || {};
-  push("sbend50", "Kanalizatsiya burilishi 45°", "Ø50", "dona", (fs[50]?.bends || 0) * 2 + n("sink") + n("bathtub") + n("shower") + n("washer"));
-  push("sbend110", "Kanalizatsiya burilishi 45°", "Ø110", "dona", (fs[110]?.bends || 0) * 2 + n("toilet"));
+  push("sbend50", "Kanalizatsiya burilishi 45°", "Ø50", "dona", (fs[50]?.bends || 0) * 2 + n("sink") + n("bathtub") + n("shower") + n("washer") + n("wudu"));
+  push("sbend110", "Kanalizatsiya burilishi 45°", "Ø110", "dona", (fs[110]?.bends || 0) * 2 + n("toilet") + n("squat"));
   push("stee50", "Qiya troynik 45°", "Ø50", "dona", fs[50]?.tees || 0);
   push("stee110", "Qiya troynik 45°", "Ø110 × 50/110", "dona", fs[110]?.tees || 0);
   if (w.sewerLen[50] && w.sewerLen[110]) push("sred", "O'tish muftasi", "Ø110 × 50", "dona", Math.max(1, fs[110]?.tees || 1));
@@ -261,7 +266,7 @@ export function plumbingBom(p, w) {
   }
 
   // Jihozlar
-  for (const k of ["sink", "toilet", "bathtub", "shower", "heater"]) push("f_" + k, k === "heater" ? "Suv isitkich" : FIX[k].name, "", "dona", n(k));
+  for (const k of ["sink", "toilet", "squat", "bathtub", "shower", "heater"]) push("f_" + k, k === "heater" ? "Suv isitkich" : FIX[k].name, "", "dona", n(k));
 
   const L = waterL + sum(w.sewerLen);
   rows.push({ g: "Santexnika ishi", k: "l_fix", name: "Jihozni ulash", unit: "dona", qty: w.fixtures, labor: true });

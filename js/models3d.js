@@ -158,6 +158,31 @@ export function toilet() {
   return g;
 }
 
+// Chashagen (chasha Genuya): polga tushirilgan sopol chasha, oyoq qo'yadigan joyi bilan, devorda yuvish bachogi
+export function squat() {
+  const g = G(), w = 0.5, d = 0.6;
+  B(g, w, 0.04, d, M.ceramic, 0, 0, 0.03);
+  S(g, 0.15, M.white, 0, 0.04, 0.0, 1, 0.12, 1.45);
+  C(g, 0.05, 0.01, M.grey, 0, 0.045, -0.12);
+  for (const x of [-0.15, 0.15]) B(g, 0.11, 0.012, 0.24, M.white, x, 0.04, 0.2);
+  B(g, 0.4, 0.3, 0.14, M.ceramic, 0, 1.6, -0.24);
+  C(g, 0.012, 1.25, M.chrome, 0.12, 0.98, -0.24);
+  line(g, [V3(0.12, 0.36, -0.24), V3(0.12, 0.08, -0.24), V3(0.05, 0.05, -0.2)], 0.012, M.chrome);
+  return g;
+}
+// Tahorat joyi: devorga past o'rnatilgan aralashtirgich, kafel supa, pol trapi va kichik o'rindiq
+export function wudu() {
+  const g = G(), w = 0.8, d = 0.5;
+  B(g, w, 0.06, d, M.ceramic, 0, 0, 0);
+  B(g, w - 0.08, 0.01, d - 0.08, M.white, 0, 0.06, 0);
+  B(g, 0.1, 0.012, 0.1, M.chrome, 0, 0.065, 0.05);
+  B(g, 0.16, 0.06, 0.06, M.chrome, 0, 0.62, -d / 2 + 0.04);
+  line(g, [V3(0, 0.62, -d / 2 + 0.07), V3(0, 0.6, -d / 2 + 0.2), V3(0, 0.55, -d / 2 + 0.22)], 0.012, M.chrome);
+  B(g, 0.3, 0.04, 0.3, M.wood, 0, 0.3, d / 2 + 0.22);
+  for (const [x, z] of [[-0.12, 0.1], [0.12, 0.1], [-0.12, 0.34], [0.12, 0.34]]) B(g, 0.03, 0.3, 0.03, M.woodDark, x, 0, d / 2 + z);
+  return g;
+}
+
 export function bathtub() {
   const g = G(), w = 1.7, d = 0.75, H = 0.56, t = 0.07;
   B(g, w, H - 0.2, d, M.ceramic, 0, 0, 0);

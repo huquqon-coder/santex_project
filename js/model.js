@@ -39,6 +39,8 @@ export const ITEM_KINDS = {
   sewerout: { name: "Kanalizatsiya chiqishi", group: "plumb", w: 26, d: 26, color: "#6e7b3c", round: true },
   sink: { name: "Rakovina", group: "plumb", w: 55, d: 45, color: "#7f97a3" },
   toilet: { name: "Unitaz", group: "plumb", w: 40, d: 65, color: "#7f97a3" },
+  squat: { name: "Chashagen", group: "plumb", w: 50, d: 60, color: "#7f97a3" },
+  wudu: { name: "Tahorat joyi", group: "plumb", w: 80, d: 50, color: "#7f97a3" },
   bathtub: { name: "Vanna", group: "plumb", w: 170, d: 75, color: "#7f97a3" },
   shower: { name: "Dush", group: "plumb", w: 90, d: 90, color: "#7f97a3" },
   washer: { name: "Kir yuvish mashinasi", group: "plumb", w: 60, d: 60, color: "#7f97a3" },

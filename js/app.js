@@ -15,7 +15,7 @@ const TOOLS = {
   plan: [["select", "Tanlash"], ["room", "Xona chizish"], ["door", "Ichki eshik"], ["entry", "Kirish eshigi"], ["window", "Deraza"], ["stairs", "Zina"], ["riser", "Stoyak"]],
   heat: [["select", "Tanlash"], ["boiler", "Qozon"], ["rad", "Radiator qo'shish"], ["manifold", "Kollektor"]],
   elec: [["select", "Tanlash"], ["panel", "Shchit"], ["jbox", "Korobka"], ["light", "Chiroq"], ["switch", "Viklyuchatel"], ["socket", "Rozetka"], ["power", "Quvvatli rozetka"]],
-  plumb: [["select", "Tanlash"], ["waterin", "Suv kirishi"], ["tank", "Suv bochkasi"],["sewerout", "Kanalizatsiya chiqishi"], ["sink", "Rakovina"], ["toilet", "Unitaz"], ["bathtub", "Vanna"], ["shower", "Dush"], ["washer", "Kir mashinasi"], ["heater", "Suv isitkich"]],
+  plumb: [["select", "Tanlash"], ["waterin", "Suv kirishi"], ["tank", "Suv bochkasi"],["sewerout", "Kanalizatsiya chiqishi"], ["sink", "Rakovina"], ["toilet", "Unitaz"], ["squat", "Chashagen"], ["wudu", "Tahorat joyi"], ["bathtub", "Vanna"], ["shower", "Dush"], ["washer", "Kir mashinasi"], ["heater", "Suv isitkich"]],
 };
 
 const ctx = {

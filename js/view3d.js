@@ -302,6 +302,8 @@ export class View3D {
         case "heater": this.place(P.heater(), wx, Math.min(1.1, Math.max(0.9, wallH - 0.9)), wz, w.ix, w.iz); break;
         case "sink": this.place(P.sink(), x, 0, z, w.ix, w.iz); break;
         case "toilet": this.place(P.toilet(), x, 0, z, w.ix, w.iz); break;
+        case "squat": this.place(P.squat(), x, 0, z, w.ix, w.iz); break;
+        case "wudu": this.place(P.wudu(), x, 0, z, w.ix, w.iz); break;
         case "bathtub": this.place(P.bathtub(), x, 0, z, w.ix, w.iz); break;
         case "shower": this.place(P.shower(), x, 0, z, w.ix, w.iz); break;
         case "washer": this.place(P.washer(), x, 0, z, w.ix, w.iz); break;

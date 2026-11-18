@@ -10,7 +10,7 @@ Bir yoki ikki qavatli uy rejasini chizib, isitish, elektr va santexnika tizimlar
 - **Radiatorlar:** cho'yan, bimetall yoki po'lat panel. Joyini surish, sonini va o'lchamini qo'lda berish mumkin.
 - **Isitish detallari:** xavfsizlik guruhi qismlari, membranali yoki ochiq bak, termomanometr, loyqa filtr, to'ldirish va to'kish kranlari, radiator kranlari, fitinglar, tutun quvuri.
 - **Elektr:** guruhlarga bo'lish, avtomat va kabel tanlash, taqsimlash korobkasi bilan yoki korobkasiz montaj. Chiroq turlari, o'rnatish balandligi, mis yoki alyuminiy sim, kesim va kuchlanish tushishi. Korobkadan viklyuchatel, chiroq va rozetkaga ulanish sxemasi, qaysi viklyuchatel qaysi chiroqni yoqishi.
-- **Santexnika:** shahar suvi yoki suv bochkasi (yerda, tagkursida, tomda, nasos stansiyasi bilan), bosim tekshiruvi. Sovuq va issiq suv quvuri diametri, kranlar va fitinglar. Kanalizatsiya diametri, nishabligi, chiqishdagi chuqurlik, reviziyalar va ventilyatsiya stoyagi.
+- **Santexnika:** shahar suvi yoki suv bochkasi (yerda, tagkursida, tomda, nasos stansiyasi bilan), bosim tekshiruvi. Jihozlar: rakovina, unitaz, chashagen, tahorat joyi, vanna, dush, kir mashinasi, suv isitkich. Sovuq va issiq suv quvuri diametri, kranlar va fitinglar. Kanalizatsiya diametri, nishabligi, chiqishdagi chuqurlik, reviziyalar va ventilyatsiya stoyagi.
 - **3D:** uy va tizimlarning aylantiriladigan modeli.
 - **Hisob:** materiallar ro'yxati va narx, qo'lda qator qo'shish, chop etish. Projecty brendi va logosi bilan Excel (.xlsx) va PDF fayl qilib yuklab olish.
 

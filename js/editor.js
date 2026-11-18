@@ -39,6 +39,8 @@ function symbol(kind, k) {
     case "riser": return `<circle r="${w - 6}"/><path d="M-9 -9L9 9M9 -9L-9 9"/>`;
     case "sink": return `<ellipse cx="0" cy="3" rx="${w - 6}" ry="${d - 6}"/><circle cx="0" cy="3" r="3"/>`;
     case "toilet": return `<rect x="${-w}" y="${-d}" width="${k.w}" height="16"/><ellipse cx="0" cy="10" rx="${w - 3}" ry="${d - 14}"/>`;
+    case "squat": return `<rect x="${-w + 6}" y="${-d + 6}" width="${k.w - 12}" height="${k.d - 12}" rx="8"/><ellipse cx="0" cy="-4" rx="10" ry="15"/><path d="M${-w + 10} ${d - 18}h12M${w - 22} ${d - 18}h12"/>`;
+    case "wudu": return `<rect x="${-w + 4}" y="${-d + 4}" width="${k.w - 8}" height="${k.d - 8}"/><rect x="-6" y="-6" width="12" height="12"/><path d="M-10 ${-d + 4}v8h20v-8"/>`;
     case "bathtub": return `<rect x="${-w + 7}" y="${-d + 7}" width="${k.w - 14}" height="${k.d - 14}" rx="22"/><circle cx="${w - 24}" cy="0" r="4"/>`;
     case "shower": return `<path d="M${-w} ${-d}L${w} ${d}M${w} ${-d}L${-w} ${d}"/><circle r="6"/>`;
     case "washer": return `<circle r="${w - 9}"/><circle r="${w - 17}"/>`;
@@ -57,7 +59,7 @@ function symbol(kind, k) {
   }
 }
 // Devorga osiladigan jihozlar eng yaqin devorga orqasi bilan buriladi: shchit, kollektor, qozon, santexnika
-const WALL_ITEMS = new Set(["panel", "manifold", "boiler", "sink", "toilet", "bathtub", "washer", "shower"]);
+const WALL_ITEMS = new Set(["panel", "manifold", "boiler", "sink", "toilet", "squat", "wudu", "bathtub", "washer", "shower"]);
 function wallAngle(p, i, k) {
   if (!WALL_ITEMS.has(i.kind)) return 0;
   const w = nearestWall(p, i.x, i.y);
