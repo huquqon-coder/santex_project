@@ -121,7 +121,8 @@ export function emptyProject() {
     openings: [],
     items: [],
     prices: {},
-    extras: [],        // hisobga qo'lda qo'shilgan mahsulot va ishlar: { id, g, name, spec, unit, qty, labor }
+    extras: [],
+    hiddenRows: [],    // hisobdan chiqarilgan qatorlar kaliti (masalan, komplektda bor)        // hisobga qo'lda qo'shilgan mahsulot va ishlar: { id, g, name, spec, unit, qty, labor }
   };
 }
 

@@ -300,6 +300,8 @@ export function electricBom(p, e) {
     }
     for (const c of [2, 3, 5]) if (wago[c]) rows.push({ g: G, k: "wago" + c, name: p.cableMetal === "al" ? "Ulash klemmasi, alyuminiy uchun (pastali)" : "Ulash klemmasi (Wago)", spec: `${c} kontaktli`, unit: "dona", qty: wago[c] });
   }
+  const boxesIn = n("socket") + n("power") + n("switch");
+  if (boxesIn) rows.push({ g: G, k: "podroz", name: "Podrozetnik (devor ichidagi montaj qutisi)", spec: "Ø68", unit: "dona", qty: boxesIn });
   for (const [k, name] of [["socket", "Rozetka"], ["power", "Quvvatli rozetka"], ["switch", "Viklyuchatel"]]) {
     if (n(k)) rows.push({ g: G, k: "e_" + k, name, spec: "", unit: "dona", qty: n(k) });
   }

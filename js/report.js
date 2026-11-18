@@ -23,13 +23,19 @@ export function renderReport(el, rows, prices, onPrice, extra = {}) {
     for (const r of rows.filter((x) => x.g === g)) {
       const qty = r.extra
         ? `<input class="qty" type="number" min="0" step="any" data-q="${r.extra}" value="${r.qty}" aria-label="${esc(r.name)} miqdori"> ${esc(r.unit)} <button class="xdel" data-del="${r.extra}" title="O'chirish" aria-label="${esc(r.name)} qatorini o'chirish">×</button>`
-        : `${r.qty} ${r.unit}`;
+        : `${r.qty} ${r.unit} <button class="xdel" data-hide="${esc(r.k)}" title="Hisobdan chiqarish (masalan, komplektda bor)" aria-label="${esc(r.name)} qatorini hisobdan chiqarish">×</button>`;
       h += `<tr><td>${esc(r.name)}${r.extra && r.labor ? " <small>(ish)</small>" : ""}</td><td>${esc(r.spec || "")}</td><td>${qty}</td>` +
         `<td><input type="number" min="0" step="1000" data-k="${esc(r.k)}" value="${price(r)}" aria-label="${esc(r.name)} narxi"></td><td data-s="${esc(r.k)}"></td></tr>`;
     }
     h += `</tbody>`;
   }
   h = rows.length ? h + `</table>` : `<p class="hint">Rejaga xona va jihozlar qo'shilgach, ro'yxat shu yerda chiqadi.</p>`;
+  // Foydalanuvchi chiqargan qatorlar: kerak bo'lsa qaytariladi
+  const hidden = extra.hidden || [];
+  if (hidden.length) {
+    h += `<div class="hiddenrows"><h3>Hisobdan chiqarilganlar</h3><ul>${hidden.map((r) =>
+      `<li><span>${esc(r.name)}${r.spec ? `, ${esc(r.spec)}` : ""} <small>(${esc(r.g)})</small></span><button class="plain" data-show="${esc(r.k)}">Qaytarish</button></li>`).join("")}</ul></div>`;
+  }
   // Qo'lda mahsulot yoki ish qo'shish
   const gopts = [EXTRA_GROUP, ...groups.filter((g) => g !== EXTRA_GROUP)].map((g) => `<option>${esc(g)}</option>`).join("");
   h += `<form class="addrow" id="addRow"><h3>Qo'lda qo'shish</h3>` +
@@ -59,7 +65,12 @@ export function renderReport(el, rows, prices, onPrice, extra = {}) {
       if (r) { r.qty = v; extra.onQty?.(q, v); totals(); }
     }
   };
-  el.onclick = (e) => { if (e.target.dataset.del) extra.onDel?.(e.target.dataset.del); };
+  el.onclick = (e) => {
+    const d = e.target.dataset;
+    if (d.del) extra.onDel?.(d.del);
+    if (d.hide) extra.onHide?.(d.hide, true);
+    if (d.show) extra.onHide?.(d.show, false);
+  };
   el.querySelector("#addRow").onsubmit = (e) => {
     e.preventDefault();
     const f = new FormData(e.target);

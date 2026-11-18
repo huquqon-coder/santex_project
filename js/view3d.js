@@ -362,14 +362,14 @@ export class View3D {
     const sx = bx - 0.05, sz = bz - 0.05, rx = bx + 0.05, rz = bz + 0.05, V = (a, y, c) => new THREE.Vector3(a, y, c);
     const main = 0.03;
     // Qozon oldi 2 m po'lat, undan keyin PPR
-    const yS = Math.min(bTop + 2, ySup), steel = P.M.steel;
+    const yS = Math.min(bTop + 2, ySup), steel = h.steelPipe ? P.M.steel : this.mat.hot, steelR = h.steelPipe ? P.M.steel : this.mat.blue;
     this.tube(V(sx, bTop, sz), V(sx, yS, sz), main, steel);
     this.tube(V(sx, yS, sz), V(sx, ySup, sz), main, this.mat.hot);
     // Qaytish tuguni qozon yonida
     const yNode = Math.min(yRet, 0), yLow = y0 + 0.3, nx = rx + 0.75, nz = rz;
     this.tube(V(rx, yRet, rz), V(nx, yRet, nz), main, this.mat.blue);
     this.tube(V(nx, yRet, nz), V(nx, yLow, nz), main, this.mat.blue);
-    this.tube(V(nx, yLow, nz), V(rx, yLow, rz), main, steel);
+    this.tube(V(nx, yLow, nz), V(rx, yLow, rz), main, steelR);
     const mid = (yRet + yLow) / 2;
     if (p.circ === "hybrid") {
       const o = nx + 0.4, a = yRet - 0.08, c = yLow + 0.1;

@@ -331,9 +331,19 @@ let repRows = [];
 function renderRep() {
   const { p, res } = ctx;
   const extras = (p.extras || []).map((x) => ({ g: x.g || EXTRA_GROUP, k: "x_" + x.id, name: x.name, spec: x.spec, unit: x.unit, qty: x.qty, labor: !!x.labor, extra: x.id }));
-  const rows = [...heatingBom(p, res.heat), ...electricBom(p, res.elec), ...plumbingBom(p, res.plumb), ...extras];
+  const all = [...heatingBom(p, res.heat), ...electricBom(p, res.elec), ...plumbingBom(p, res.plumb), ...extras];
+  const off = new Set(p.hiddenRows || []);
+  const rows = all.filter((r) => !off.has(r.k));
   repRows = rows;
   renderReport($("report"), rows, p.prices, (k, v) => { p.prices[k] = v; save(); }, {
+    hidden: all.filter((r) => off.has(r.k)),
+    onHide: (k, hide) => {
+      ctx.commit();
+      const s = new Set(p.hiddenRows || []);
+      if (hide) s.add(k); else s.delete(k);
+      p.hiddenRows = [...s];
+      ctx.changed();
+    },
     onAdd: (x, price) => {
       ctx.commit();
       const id = uid();

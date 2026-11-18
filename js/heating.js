@@ -4,6 +4,7 @@ import { SIDES, coverage, extLength, floorList, floorOf, fv, isExterior, sideInf
 import { buildGrid, multiFloor, riserPoint, routeTree, segLen } from "./route.js";
 import { MAX_LOOP, entryPoint, meander, ufhRoom } from "./ufh.js";
 import { RAD_KINDS, sizeRad, unitMax } from "./radiators.js";
+import { treeFittings } from "./fittings.js";
 
 const U_WIN = 1.6, U_DOOR = 2, U_CEIL = 0.5, U_FLOOR = 0.6, T_GROUND = 5, CEIL_K = 0.9;
 const Q70 = 160, SEC_W = 9.3, SEC_L = 1.45, MAX_SEC = 14;
@@ -233,8 +234,10 @@ export function computeHeating(p) {
   out.pipeTotal = Object.values(sumL).reduce((a, b) => a + b, 0);
   // Qozon oldidagi qism po'lat, shuncha PPR kamayadi
   const mainPipe = size(Q, grav);
-  out.steelPipe = STEEL.find((d) => d.id >= mainPipe.id) || STEEL[STEEL.length - 1];
-  if (sumL[mainPipe.dn]) sumL[mainPipe.dn] = Math.max(0, sumL[mainPipe.dn] - STEEL_M);
+  // Devorga osiladigan gaz qozoni past haroratda ishlaydi va PPR ga to'g'ridan ulanadi, po'lat kerak emas
+  const wallGas = p.fuel !== "solid" && p.circ === "pump";
+  out.steelPipe = wallGas ? null : STEEL.find((d) => d.id >= mainPipe.id) || STEEL[STEEL.length - 1];
+  if (out.steelPipe && sumL[mainPipe.dn]) sumL[mainPipe.dn] = Math.max(0, sumL[mainPipe.dn] - STEEL_M);
 
   const volPipes = out.segs.reduce((a, s) => a + (Math.PI / 4) * (s.id / 100) ** 2 * s.len * 2 * 10, 0);
   out.volume = rads.reduce((a, x) => a + x.litre, 0) + volPipes + 40 + out.ufhPipe * 0.113;
@@ -267,17 +270,21 @@ function schemeWarnings(p) {
 // Tanlangan tizim tarkibi, sahifada ro'yxat bo'lib chiqadi
 export function schemeParts(p, h) {
   const a = [];
-  a.push(p.fuel === "solid" ? `Qattiq yoqilg'i qozoni ${h.boilerKw} kW, havo ventilyatori bilan` : `Gaz qozoni ${h.boilerKw} kW`);
-  if (p.circ === "pump") a.push("Aylanma nasos, ikki tomonida kran", "Quvurlar polda, ikkala liniya pastda");
+  const wallGas = p.fuel !== "solid" && p.circ === "pump";
+  a.push(p.fuel === "solid" ? `Qattiq yoqilg'i qozoni ${h.boilerKw} kW, havo ventilyatori bilan` : wallGas ? `Devorga osiladigan gaz qozoni ${h.boilerKw} kW: nasos, 8 l membranali bak va xavfsizlik guruhi ichida` : `Polga qo'yiladigan gaz qozoni ${h.boilerKw} kW, elektrga bog'liq emas`);
+  if (p.circ === "pump") a.push(...(wallGas ? [] : ["Aylanma nasos, ikki tomonida kran"]), "Quvurlar polda, ikkala liniya pastda");
   if (p.circ === "gravity") a.push("Nasos yo'q, elektrga bog'liq emas", "Issiq suv cherdakdan tushadi, qaytish polda");
   if (p.circ === "hybrid") a.push("Nasos bypass tarmog'ida, kranlar bilan", "Teskari klapan: tok o'chsa suv nasosni aylanib o'tadi", "Issiq suv cherdakdan tushadi, qaytish polda");
   if (p.loop === "open") a.push(`Ochiq kengayish baki ${h.tank || 20} l, eng baland nuqtada, izolyatsiyali`, "Qozondan bakka kengayish quvuri: unga kran qo'yilmaydi", "To'kish quvuri bakdan pastga", "Havo bak orqali chiqadi");
-  else a.push(`Yopiq membranali bak ${h.vessel || 18} l, servis krani bilan`, "Xavfsizlik guruhi qozon chiqishida: klapan 3 bar, avtomatik havo chiqargich, manometr. Klapan bilan qozon orasida kran bo'lmaydi", "Klapan to'kish quvuri kanalizatsiyaga");
+  else if (wallGas) a.push((h.vessel || 0) > 8 ? `Qozondagi bak yetmaydi: qo'shimcha membranali bak kerak` : "Qozondagi membranali bak tizimga yetadi");
+  else a.push(`Yopiq membranali bak ${h.vessel || 18} l, servis krani bilan`, "Xavfsizlik guruhi to'plami qozon chiqishida: klapan 3 bar, avtomatik havo chiqargich, manometr. Klapan bilan qozon orasida kran bo'lmaydi", "Klapan to'kish quvuri kanalizatsiyaga");
   if (p.fuel === "solid" && p.loop === "closed") a.push("Termik to'kish klapani, sovuq suv bilan sovitadi");
   if (p.fuel === "solid" && p.circ === "pump") a.push("Uch yo'lli klapan 55 °C: qozon qaytishini isitib, kondensat va smola hosil bo'lishidan saqlaydi");
-  a.push("Termomanometr chiqishda, termometr qaytishda", "Loyqa filtr qaytish liniyasida, qozon oldida", "To'ldirish krani teskari klapan bilan, to'kish krani eng past nuqtada",
-    "Har radiatorda ikki kran va Mayevskiy krani", "PPR PN25 armaturali quvur", `Qozon oldida po'lat quvur Ø${h.steelPipe?.dn || 32}, har liniyada 2 m`,
-    p.fuel === "solid" ? "Izolyatsiyali tutun quvuri, tortish regulyatori bilan" : "Koaksial tutun quvuri");
+  const sec = (p.radType || "cast") !== "panel" || (p.radiators || []).some((r) => r.kind && r.kind !== "panel");
+  a.push(...(p.fuel === "solid" ? ["Qozonda termometr bor, qaytish liniyasida qo'shimcha termometr"] : []), "Loyqa filtr qaytish liniyasida, qozon oldida", "To'ldirish krani teskari klapan bilan, to'kish krani eng past nuqtada",
+    sec ? "Har radiatorda ikki kran, seksiyali radiatorda Mayevskiy krani" : "Har radiatorda ikki kran. Panel radiator havo chiqargich, probka va kronshteyn bilan keladi",
+    "PPR PN25 armaturali quvur", ...(h.steelPipe ? [`Qozon oldida po'lat quvur Ø${h.steelPipe.dn}, har liniyada 2 m`] : ["Qozon PPR quvurga amerikanka bilan to'g'ridan ulanadi"]),
+    p.fuel === "solid" ? "Izolyatsiyali tutun quvuri, tortish regulyatori bilan" : wallGas ? "Koaksial tutun quvuri" : "Zanglamas tutun quvuri");
   return a;
 }
 
@@ -285,7 +292,10 @@ export function heatingBom(p, h) {
   const rows = [];
   if (!h.rads.length && !h.ufh?.length) return rows;
   const G = "Isitish", solid = p.fuel === "solid";
-  rows.push({ g: G, k: "boiler", name: solid ? "Qattiq yoqilg'i qozoni" : "Gaz qozoni", spec: `${h.boilerKw} kW`, unit: "dona", qty: 1 });
+  // Faqat nasosli tizimdagi gaz qozoni devorga osiladi: nasos, membranali bak va xavfsizlik guruhi uning ichida bo'ladi
+  const wallGas = !solid && p.circ === "pump";
+  const boilerName = solid ? "Qattiq yoqilg'i qozoni" : wallGas ? "Devorga osiladigan gaz qozoni (nasos, bak va xavfsizlik guruhi ichida)" : "Polga qo'yiladigan gaz qozoni, elektrga bog'liq emas";
+  rows.push({ g: G, k: "boiler", name: boilerName, spec: `${h.boilerKw} kW`, unit: "dona", qty: 1 });
   for (const kind of ["cast", "bimetal"]) {
     const n = h.rads.filter((r) => r.kind === kind).reduce((a, r) => a + r.sec, 0);
     if (n) rows.push({ g: G, k: "rad_" + kind, name: `${RAD_KINDS[kind].name} radiator`, spec: "o'qi 500 mm", unit: "seksiya", qty: n });
@@ -293,12 +303,12 @@ export function heatingBom(p, h) {
   const panels = {};
   h.rads.filter((r) => r.kind === "panel").forEach((r) => (panels[r.label] = (panels[r.label] || 0) + 1));
   for (const [spec, n] of Object.entries(panels)) rows.push({ g: G, k: "panel_" + spec, name: "Po'lat panel radiator", spec, unit: "dona", qty: n });
-  // Har bir radiator uchun mayda qismlar
+  // Har bir radiator uchun mayda qismlar. Panel radiator havo chiqargich, probka va kronshteynlari bilan keladi
   const R = h.rads.length, secR = h.rads.filter((r) => r.kind !== "panel");
   if (R) {
     rows.push({ g: G, k: "radval", name: "Radiator krani, amerikanka bilan", spec: "1/2\", to'la kesimli", unit: "dona", qty: R * 2 });
-    rows.push({ g: G, k: "mayev", name: "Mayevskiy krani (havo chiqargich)", spec: "1/2\"", unit: "dona", qty: R });
     if (secR.length) {
+      rows.push({ g: G, k: "mayev", name: "Mayevskiy krani (havo chiqargich)", spec: "1/2\"", unit: "dona", qty: secR.length });
       rows.push({ g: G, k: "plugs", name: "Radiator probka va zaglushkalari to'plami", spec: "1\" × 1/2\"", unit: "to'plam", qty: secR.length });
       rows.push({ g: G, k: "brack", name: "Radiator kronshteyni", spec: "devorga", unit: "dona", qty: secR.reduce((a, r) => a + (r.sec > 10 ? 4 : 3), 0) });
     }
@@ -311,8 +321,8 @@ export function heatingBom(p, h) {
     rows.push({ g: G, k: "steel", name: "Po'lat quvur, qozon oldida", spec: `Ø${h.steelPipe.dn}`, unit: "m", qty: STEEL_M });
     rows.push({ g: G, k: "adapter", name: "Po'latdan PPR ga o'tish muftasi", spec: "rezbali", unit: "dona", qty: 2 });
   }
-  const conn = h.topSupply ? p.h / 100 + 1 : 2.5;
-  if (h.rads.length && p.radScheme !== "collector") rows.push({ g: G, k: "conn", name: "Radiator ulanishi, PPR PN25", spec: "Ø25", unit: "m", qty: Math.ceil(h.rads.length * conn) });
+  const conn = h.topSupply ? p.h / 100 + 1 : 2.5, connDn = p.circ === "pump" ? 20 : 25;
+  if (h.rads.length && p.radScheme !== "collector") rows.push({ g: G, k: "conn", name: "Radiator ulanishi, PPR PN25", spec: `Ø${connDn}`, unit: "m", qty: Math.ceil(h.rads.length * conn) });
   for (const [dn, len] of Object.entries(h.starLens || {})) {
     rows.push({ g: G, k: "pexal" + dn, name: "Metalloplastik quvur, kollektordan radiatorga", spec: `${dn}×2`, unit: "m", qty: Math.ceil(len * 1.1) });
   }
@@ -333,25 +343,37 @@ export function heatingBom(p, h) {
     rows.push({ g: "Isitish ishi", k: "l_ufh", name: "Iliq pol yotqizish", unit: "m²", qty: Math.ceil(area), labor: true });
   }
   if (h.manifolds?.length) rows.push({ g: "Isitish ishi", k: "l_man", name: "Kollektorni o'rnatish va sozlash", unit: "dona", qty: h.manifolds.length, labor: true });
-  // PPR fitinglari: ikkala liniya uchun
-  const bends = h.segs.reduce((a, s) => a + Math.max(0, s.pts.length - 2), 0), tees = Math.max(0, h.segs.length - 1);
-  const pipeL = h.pipeTotal || 0, mainDn = h.steelPipe?.dn || 32;
+  // PPR fitinglari quvur yo'lidan, diametr bo'yicha; issiq va qaytish liniyasi bir xil, shuning uchun ikki baravar
+  const pipeL = h.pipeTotal || 0, mainDn = h.steelPipe?.dn || Math.max(...Object.keys(h.lens).map(Number), 25);
   if (pipeL) {
-    rows.push({ g: G, k: "hbend", name: "PPR tirsak 90°", spec: "Ø20–" + mainDn, unit: "dona", qty: bends * 2 + R * 4 });
-    rows.push({ g: G, k: "htee", name: "PPR troynik", spec: "Ø20–" + mainDn, unit: "dona", qty: tees * 2 + R * 2 });
-    rows.push({ g: G, k: "hcoup", name: "PPR mufta", spec: "Ø20–" + mainDn, unit: "dona", qty: Math.ceil(pipeL / 4) });
-    rows.push({ g: G, k: "hclip", name: "PPR quvur qisqichi", spec: "Ø20–" + mainDn, unit: "dona", qty: Math.ceil(pipeL / 0.7) });
+    const F = "Isitish: PPR fitinglar", fit = (k, name, spec, q) => q > 0 && rows.push({ g: F, k, name, spec, unit: "dona", qty: Math.ceil(q) });
+    const roots = [{ x: h.boiler.x, y: h.boiler.y, floor: h.boiler.floor || 0 }, ...(h.risers || []).map((q) => ({ x: q.x, y: q.y, floor: q.to }))];
+    const tf = treeFittings(h.segs, roots);
+    const sortDn = (o) => Object.entries(o).sort((a, b) => parseFloat(a[0].replace("Ø", "")) - parseFloat(b[0].replace("Ø", "")));
+    // Har radiatorga ikki liniya: devordan radiatorga ikkitadan otvod
+    const bend = { ...tf.bend };
+    if (R && p.radScheme !== "collector") bend[connDn] = (bend[connDn] || 0) + R * 2;
+    for (const [dn, q] of sortDn(bend)) fit("hbend" + dn, "Otvod (tirsak) 90°", `Ø${dn}`, q * 2);
+    for (const [dn, q] of sortDn(tf.half)) fit("hhalf" + dn, "Polotvod (yarim tirsak) 45°", `Ø${dn}`, q * 2);
+    for (const [s, q] of sortDn(tf.tee)) fit("htee" + s, s.includes("×") ? "Troynik, o'tuvchi (perexodnoy)" : "Troynik, teng", s, q * 2);
+    for (const [s, q] of sortDn(tf.red)) fit("hred" + s, "O'tish muftasi (perexodnik)", s, q * 2);
+    for (const [dn, l] of sortDn(h.lens)) {
+      if (l < 0.1) continue;
+      fit("hcoup" + dn, "Mufta (ulash)", `Ø${dn}`, Math.floor(l / 4) + 1);
+      fit("hclip" + dn, "Quvur qisqichi (klips)", `Ø${dn}`, l / 0.7);
+    }
+    if (R && p.radScheme !== "collector") fit("hadapt", "Adapter, radiator kraniga", `Ø${connDn} × 1/2"`, R * 2);
     rows.push({ g: G, k: "hins", name: "Quvur izolyatsiyasi, issiq bo'lmagan joylarda", spec: "Ø25–" + mainDn, unit: "m", qty: Math.ceil(Math.min(pipeL, 6 + (p.loop === "open" ? p.h / 100 + 2 : 0))) });
   }
   // Qozon uzeli
-  rows.push({ g: G, k: "bunion", name: "Qozon ulash amerikankasi", spec: `${mainDn >= 40 ? "1 1/2\"" : "1 1/4\""}`, unit: "dona", qty: 2 });
+  rows.push({ g: G, k: "bunion", name: "Qozon ulash amerikankasi", spec: wallGas ? "3/4\"" : mainDn >= 40 ? "1 1/2\"" : "1 1/4\"", unit: "dona", qty: 2 });
   if (p.loop === "closed") rows.push({ g: G, k: "bval", name: "Qozon kranlari (servis uchun)", spec: "to'la kesimli", unit: "dona", qty: 2 });
   rows.push({ g: G, k: "filter", name: "Loyqa filtr (gryazevik), qaytishda", spec: `Ø${mainDn}`, unit: "dona", qty: 1 });
-  rows.push({ g: G, k: "tmano", name: "Termomanometr, qozon chiqishida", spec: "0–120 °C, 0–4 bar", unit: "dona", qty: 1 });
-  rows.push({ g: G, k: "thermo", name: "Termometr, qaytish liniyasida", spec: "0–120 °C", unit: "dona", qty: 1 });
-  rows.push({ g: G, k: "fill", name: "To'ldirish krani va teskari klapan, sovuq suvdan", spec: "1/2\"", unit: "to'plam", qty: 1 });
+  // Qozonning o'zida termometr bor; qattiq yoqilg'ida qaytish haroratini ko'rish uchun qo'shimcha termometr
+  if (solid) rows.push({ g: G, k: "thermo", name: "Termometr, qaytish liniyasida", spec: "0–120 °C", unit: "dona", qty: 1 });
+  if (!wallGas) rows.push({ g: G, k: "fill", name: "To'ldirish krani va teskari klapan, sovuq suvdan", spec: "1/2\"", unit: "to'plam", qty: 1 });
   rows.push({ g: G, k: "drain", name: "To'kish krani, eng past nuqtada", spec: "1/2\"", unit: "dona", qty: 1 });
-  if (p.circ !== "gravity") {
+  if (p.circ !== "gravity" && !wallGas) {
     rows.push({ g: G, k: "pump", name: "Aylanma nasos", spec: "25-60", unit: "dona", qty: 1 });
     rows.push({ g: G, k: "pumpval", name: "Nasos kranlari, amerikanka bilan", spec: "to'la kesimli", unit: "dona", qty: 2 });
     if (solid && p.circ === "pump") rows.push({ g: G, k: "antic", name: "Uch yo'lli termostatik klapan, qozon qaytishiga", spec: "55 °C", unit: "dona", qty: 1 });
@@ -367,15 +389,19 @@ export function heatingBom(p, h) {
     rows.push({ g: G, k: "exp", name: "Kengayish quvuri, qozondan bakka (kransiz)", spec: "Ø25", unit: "m", qty: Math.ceil(((p.floors || 1) * (p.h + (p.slab ?? 30))) / 100 + 1.5) });
     rows.push({ g: G, k: "over", name: "To'kish (signal) quvuri, bakdan pastga", spec: "Ø20", unit: "m", qty: Math.ceil(((p.floors || 1) * p.h) / 100 + 4) });
   } else {
-    rows.push({ g: G, k: "vessel", name: "Yopiq membranali bak", spec: `${h.vessel || 18} l`, unit: "dona", qty: 1 });
-    rows.push({ g: G, k: "vesval", name: "Membranali bak servis krani", spec: "3/4\"", unit: "dona", qty: 1 });
-    rows.push({ g: G, k: "vesbr", name: "Membranali bak kronshteyni", spec: "", unit: "dona", qty: 1 });
-    // Xavfsizlik guruhi qismlari alohida
-    rows.push({ g: G, k: "sgbody", name: "Xavfsizlik guruhi konsoli", spec: "1\"", unit: "dona", qty: 1 });
-    rows.push({ g: G, k: "sgvalve", name: "Xavfsizlik klapani", spec: "3 bar", unit: "dona", qty: 1 });
-    rows.push({ g: G, k: "sgvent", name: "Avtomatik havo chiqargich", spec: "1/2\"", unit: "dona", qty: 1 + (h.risers?.length || 0) });
-    rows.push({ g: G, k: "sgmano", name: "Manometr", spec: "0–4 bar", unit: "dona", qty: 1 });
-    rows.push({ g: G, k: "sgdrain", name: "Xavfsizlik klapani to'kish quvuri, kanalizatsiyaga", spec: "Ø20", unit: "m", qty: 2 });
+    // Devorga osiladigan qozon ichida 8 l bak bor; tizimga kattaroq kerak bo'lsa, farqi qo'shimcha bak bilan
+    const vessel = wallGas ? [8, 12, 18, 24, 35, 50, 80].find((v) => v >= (h.vessel || 0) - 8) : h.vessel || 18;
+    if (!wallGas || (h.vessel || 0) > 8) {
+      rows.push({ g: G, k: "vessel", name: wallGas ? "Qo'shimcha membranali bak (qozondagisi yetmaydi)" : "Yopiq membranali bak", spec: `${vessel} l`, unit: "dona", qty: 1 });
+      rows.push({ g: G, k: "vesval", name: "Membranali bak servis krani", spec: "3/4\"", unit: "dona", qty: 1 });
+      rows.push({ g: G, k: "vesbr", name: "Membranali bak kronshteyni", spec: "", unit: "dona", qty: 1 });
+    }
+    // Xavfsizlik guruhi bitta to'plam bo'lib sotiladi
+    if (!wallGas) {
+      rows.push({ g: G, k: "safety", name: "Xavfsizlik guruhi to'plami: 3 bar klapan, avtomatik havo chiqargich, manometr", spec: "1\"", unit: "to'plam", qty: 1 });
+      rows.push({ g: G, k: "sgdrain", name: "Xavfsizlik klapani to'kish quvuri, kanalizatsiyaga", spec: "Ø20", unit: "m", qty: 2 });
+    }
+    if (h.risers?.length) rows.push({ g: G, k: "sgvent", name: "Avtomatik havo chiqargich, stoyak tepasida", spec: "1/2\"", unit: "dona", qty: h.risers.length });
     if (solid) {
       rows.push({ g: G, k: "thermal", name: "Termik to'kish klapani", spec: "95 °C", unit: "dona", qty: 1 });
       rows.push({ g: G, k: "thermalw", name: "Termik klapan uchun sovuq suv kirishi va filtr", spec: "1/2\"", unit: "to'plam", qty: 1 });
@@ -388,12 +414,16 @@ export function heatingBom(p, h) {
     rows.push({ g: G, k: "flueb", name: "Tutun quvuri tirsagi va reviziya troynigi", spec: "Ø150–180", unit: "dona", qty: 2 });
     rows.push({ g: G, k: "fluer", name: "Tomdan o'tish va qalpoq", spec: "Ø150–180", unit: "to'plam", qty: 1 });
     rows.push({ g: G, k: "draft", name: "Tortish regulyatori (termoregulyator)", spec: "", unit: "dona", qty: 1 });
-  } else {
+  } else if (wallGas) {
     rows.push({ g: G, k: "coax", name: "Koaksial tutun quvuri to'plami", spec: "60/100", unit: "to'plam", qty: 1 });
+    rows.push({ g: G, k: "gasv", name: "Gaz krani va gaz filtri", spec: "1/2\"", unit: "to'plam", qty: 1 });
+  } else {
+    rows.push({ g: G, k: "flue", name: "Tutun quvuri, zanglamas", spec: "Ø115–130", unit: "m", qty: flueH });
+    rows.push({ g: G, k: "fluer", name: "Tomdan o'tish va qalpoq", spec: "Ø115–130", unit: "to'plam", qty: 1 });
     rows.push({ g: G, k: "gasv", name: "Gaz krani va gaz filtri", spec: "1/2\"", unit: "to'plam", qty: 1 });
   }
   rows.push({ g: "Isitish ishi", k: "l_boiler", name: "Qozonni o'rnatish va ulash", unit: "dona", qty: 1, labor: true });
-  rows.push({ g: "Isitish ishi", k: "l_safety", name: p.loop === "open" ? "Kengayish bakini o'rnatish" : "Xavfsizlik guruhi va membranali bakni o'rnatish", unit: "dona", qty: 1, labor: true });
+  if (!wallGas || (h.vessel || 0) > 8) rows.push({ g: "Isitish ishi", k: "l_safety", name: p.loop === "open" ? "Kengayish bakini o'rnatish" : wallGas ? "Qo'shimcha membranali bakni o'rnatish" : "Xavfsizlik guruhi va membranali bakni o'rnatish", unit: "dona", qty: 1, labor: true });
   if (h.rads.length) rows.push({ g: "Isitish ishi", k: "l_rad", name: "Radiatorni osish va ulash", unit: "dona", qty: h.rads.length, labor: true });
   if (h.risers?.length) rows.push({ g: "Isitish ishi", k: "l_riser", name: "Qavatlararo stoyak", unit: "dona", qty: h.risers.length * 2, labor: true });
   rows.push({ g: "Isitish ishi", k: "l_pipe", name: "Quvur yotqizish", unit: "m", qty: Math.ceil((h.pipeTotal || 0) * 1.1), labor: true });

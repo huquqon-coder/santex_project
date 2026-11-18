@@ -230,21 +230,16 @@ export function plumbingBom(p, w) {
   if (n("heater")) fit("pamerh", "Amerikanka, suv isitkichga", "Ø20 × 1/2\"", n("heater") * 2);
   const wet = new Set(fxc.map((i) => roomAt(fv(p, floorOf(i)), i.x, i.y)?.id || "-")).size;
   fit("pball", "PPR sharli kran, xona tarmog'iga", "Ø20–25", wet + (n("heater") && conn > wet ? wet : 0));
-  fit("pcap", "Zaglushka, bosim sinovi uchun", "Ø20", conn);
   fit("psleeve", "Devor va yopmadan o'tish gilzasi", "Ø32–40", (w.risers || []).filter((q) => q.kind !== "sewer").length + 2);
   push("pprins", "Issiq suv quvuri izolyatsiyasi", "Ø20–25", "m", sum(w.hotLen) * 1.1);
 
-  // Jihozlarni ulash armaturasi
-  const angle = n("sink") * 2 + n("toilet");
-  push("anglev", "Burchakli kran", "1/2\" × 1/2\"", "dona", angle);
-  push("flexh", "Moslashuvchan shlang", "1/2\", 40–60 sm", "dona", angle + n("heater") * 2);
-  push("ecc", "Ekssentrik va dekor qopqoq, aralashtirgichga", "1/2\" × 3/4\"", "to'plam", n("bathtub") + n("shower"));
+  // Jihozlarni ulash armaturasi. Rakovina aralashtirgichi shlangi bilan, vanna va dush aralashtirgichi ekssentrigi bilan,
+  // suv isitkich xavfsizlik klapani bilan keladi
+  push("anglev", "Burchakli kran", "1/2\" × 1/2\"", "dona", n("sink") * 2 + n("toilet"));
+  push("flexh", "Moslashuvchan shlang (unitaz va suv isitkichga)", "1/2\", 40–60 sm", "dona", n("toilet") + n("heater") * 2);
   push("mixer", "Aralashtirgich (smesitel)", "", "dona", n("sink") + n("bathtub") + n("shower"));
   push("washv", "Kir mashinasi krani", "1/2\" × 3/4\"", "dona", n("washer"));
-  if (n("heater")) {
-    push("heatsafe", "Suv isitkich xavfsizlik klapani", "6–8 bar", "dona", n("heater"));
-    push("heatval", "Suv isitkich kranlari", "1/2\"", "dona", n("heater") * 2);
-  }
+  if (n("heater")) push("heatval", "Suv isitkich kranlari", "1/2\"", "dona", n("heater") * 2);
 
   // Kanalizatsiya
   for (const dn of Object.keys(w.sewerLen).sort((a, b) => a - b)) push("pvc" + dn, "PVX kanalizatsiya quvuri", `Ø${dn}`, "m", w.sewerLen[dn] * 1.1);
