@@ -1,6 +1,6 @@
 // 2D reja muharriri (SVG). Tahrirlash xona, ochilma va jihozlar ustida ishlaydi.
 import { ITEM_KINDS, ROOM_TYPES, item, opening, room } from "./model.js";
-import { bounds, floorOf, fv, nearestSide, openingRect, roomAt } from "./geometry.js";
+import { bounds, floorOf, fv, nearestSide, nearestWall, openingRect, roomAt } from "./geometry.js";
 
 const SNAP = 10;
 const snap = (v) => Math.round(v / SNAP) * SNAP;
@@ -55,6 +55,15 @@ function symbol(kind, k) {
     case "tank": return `<circle r="${w - 6}"/><circle r="${w - 16}" style="fill:${c};opacity:.35"/><path d="M${-w + 18} 0H${w - 18}"/>`;
     default: return "";
   }
+}
+// Devorga osiladigan jihozlar eng yaqin devorga orqasi bilan buriladi: shchit, kollektor, qozon, santexnika
+const WALL_ITEMS = new Set(["panel", "manifold", "boiler", "sink", "toilet", "bathtub", "washer", "shower"]);
+function wallAngle(p, i, k) {
+  if (!WALL_ITEMS.has(i.kind)) return 0;
+  const w = nearestWall(p, i.x, i.y);
+  if (w.d === undefined || w.d > Math.max(k.w, k.d) / 2 + 40) return 0;
+  // Belgining orqasi yuqorida (-y): uni devor tomonga, ya'ni ichki normalning teskarisiga buramiz
+  return Math.round((Math.atan2(-w.ix, w.iz) * 180) / Math.PI);
 }
 function openSymbol(p, o, z) {
   const r = p.rooms.find((x) => x.id === o.room), L = o.w;
@@ -313,7 +322,8 @@ export class Editor {
       const attr = on ? `data-t="item" data-id="${i.id}"` : "";
       const cls = `it ${on ? "" : "dim"} ${s ? "s" : ""}`;
       const hit = k.round ? 2 + k.w / 2 : 0;
-      o.push(`<g class="${cls}" ${attr} transform="translate(${i.x} ${i.y})${i.rot ? " rotate(90)" : ""}"><title>${k.name}</title>` +
+      const ang = i.kind === "stairs" ? (i.rot ? 90 : 0) : wallAngle(p, i, k);
+      o.push(`<g class="${cls}" ${attr} transform="translate(${i.x} ${i.y})${ang ? ` rotate(${ang})` : ""}"><title>${k.name}</title>` +
         (hit ? `<circle class="bg" r="${hit}"/>` : `<rect class="bg" x="${-k.w / 2}" y="${-k.d / 2}" width="${k.w}" height="${k.d}"/>`) +
         symbol(i.kind, k) + (i.kind === "light" ? `<text class="lt" y="${-k.w / 2 - 6}" style="fill:var(--fg);stroke:none;font:600 15px var(--mono);text-anchor:middle">${LIGHT_LETTER[i.ltype] || ""}</text>` : "") + `</g>`);
     }
@@ -358,8 +368,10 @@ export class Editor {
       for (const pts of u.pattern) o.push(this.line(pts, "pu"));
     }
     for (const s of (h.starSegs || []).filter((q) => onFloor(q, f))) { o.push(this.line(s.pts, "ph thin", -3)); o.push(this.line(s.pts, "pc thin", 3)); }
+    const v = fv(this.ctx.p, f);
     for (const m of (h.manifolds || []).filter((q) => onFloor(q, f) && q.auto)) {
-      o.push(`<rect class="man" x="${m.x - 30}" y="${m.y - 7}" width="60" height="14"><title>Kollektor (avtomatik), ${m.ports} chiqish</title></rect>`);
+      const a = wallAngle(v, { kind: "manifold", x: m.x, y: m.y }, ITEM_KINDS.manifold);
+      o.push(`<rect class="man" x="-30" y="-7" width="60" height="14" transform="translate(${m.x} ${m.y})${a ? ` rotate(${a})` : ""}"><title>Kollektor (avtomatik), ${m.ports} chiqish</title></rect>`);
     }
     const sel = this.ctx.sel;
     for (const r of h.rads.filter((q) => onFloor(q, f))) {
