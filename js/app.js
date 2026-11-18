@@ -272,6 +272,9 @@ function resultHtml() {
       field("pFuel", "Qozon", sel("pFuel", [["solid", "Qattiq yoqilg'i"], ["gas", "Gaz"]], p.fuel)) +
       field("pReg", "Suv rejimi", sel("pReg", [["80/60", "80 / 60 °C"], ["75/60", "75 / 60 °C"], ["70/55", "70 / 55 °C"]], p.regime)) +
       field("pScheme", "Radiatorlarni ulash", sel("pScheme", [["tree", "Troynikli (ketma-ket)"], ["collector", "Kollektordan (nurli)"]], p.radScheme || "tree")) +
+      field("pPipe", "Quvur diametri", sel("pPipe", [["count", "Magistral 32/40, radiatorga 25"], ["calc", "Gidravlik hisob bo'yicha"]], p.pipeRule || "count")) +
+      (p.pipeRule !== "calc" ? field("pMainAt", "Shuncha radiatordan boshlab magistral 40 mm", numI("pMainAt", p.mainAt || 7, 2, 40, 1)) +
+        `<p class="hint">Hozir ${h.rads.length} ta radiator: magistral Ø${h.mainDn || 32}, magistraldan radiatorga Ø25. Rejada har quvur ustida diametri yozilgan.</p>` : "") +
       field("pRad", "Radiatorlar", sel("pRad", Object.entries(RAD_KINDS).map(([k, v]) => [k, v.name]), p.radType || "cast")) +
       (p.radType === "panel" ? `<div class="row">` + field("pPtype", "Panel turi", sel("pPtype", PANEL_TYPES.map((t) => [String(t), String(t)]), String(p.panelType || 22))) +
         field("pPh", "Balandligi, mm", sel("pPh", PANEL_HEIGHTS.map((t) => [String(t), String(t)]), String(p.panelH || 500))) + `</div>` : "") +
@@ -407,7 +410,7 @@ $("side").addEventListener("change", (e) => {
     pName: () => (p.name = v), pWallC: () => (p.wallColor = v), pH: () => (p.h = n), pT: () => (p.wallT = n), pMat: () => (p.wallMaterial = v),
     pIns: () => (p.ins = n), pOut: () => (p.tout = n), pReg: () => (p.regime = v),
     pFloors: () => { p.floors = n; view3dFramed = false; }, pSlab: () => (p.slab = n),
-    pScheme: () => (p.radScheme = v), pUfhReg: () => (p.ufhRegime = v), pUfhStep: () => (p.ufhStep = n), pUfhCover: () => (p.ufhCover = v),
+    pScheme: () => (p.radScheme = v), pPipe: () => (p.pipeRule = v), pMainAt: () => (p.mainAt = Math.max(2, n || 7)), pUfhReg: () => (p.ufhRegime = v), pUfhStep: () => (p.ufhStep = n), pUfhCover: () => (p.ufhCover = v),
     rUfh: () => (r.ufh = e.target.checked), rUfhStep: () => (r.ufhStep = opt(v)), rUfhCover: () => (r.ufhCover = v || undefined),
     pRad: () => (p.radType = v), pPtype: () => (p.panelType = n), pPh: () => (p.panelH = n), pMetal: () => (p.cableMetal = v),
     rKind: () => { rd.kind = v || undefined; rd.size = undefined; },

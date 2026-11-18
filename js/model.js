@@ -109,6 +109,8 @@ export function emptyProject() {
     cableMetal: "al",  // cu: mis, al: alyuminiy
     boxCable: { feed: "2×10", socket: "2×4", power: "2×6", light: "2×2.5" }, // korobkali montajdagi kabellar
     groupCable: {},    // guruh nomi bo'yicha qo'lda tanlangan kesim, mm²
+    pipeRule: "count", // count: magistral 32/40 radiatorlar soniga qarab, radiatorga 25; calc: gidravlik hisob
+    mainAt: 7,         // shuncha va undan ko'p radiatorda magistral 40 mm
     radScheme: "tree", // tree: troynikli, collector: kollektordan nurli
     ufhRegime: "45/35",
     ufhStep: 15,

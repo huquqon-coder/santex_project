@@ -347,8 +347,13 @@ export class Editor {
   }
   heat(o, h) {
     const f = this.ctx.floor;
-    for (const s of h.segs.filter((q) => onFloor(q, f))) { o.push(this.line(s.pts, "ph", -5)); o.push(this.line(s.pts, "pc", 5)); }
-    for (const q of h.risers || []) o.push(`<circle class="rs2" cx="${q.x}" cy="${q.y}" r="13"><title>Stoyak</title></circle>`);
+    // Magistral yo'g'onroq chiziladi, har bo'lak ustida quvur diametri
+    for (const s of h.segs.filter((q) => onFloor(q, f))) {
+      const w = s.main ? 6 : 4;
+      o.push(this.line(s.pts, "ph", -5, w)); o.push(this.line(s.pts, "pc", 5, w));
+      this.tag(o, s.pts, `Ø${s.dn}`, "pl hd2", 16, 0.8);
+    }
+    for (const q of h.risers || []) o.push(`<circle class="rs2" cx="${q.x}" cy="${q.y}" r="13"><title>Stoyak, Ø${q.dn || ""}</title></circle>`);
     for (const u of (h.ufh || []).filter((q) => onFloor(q, f))) {
       for (const pts of u.pattern) o.push(this.line(pts, "pu"));
     }

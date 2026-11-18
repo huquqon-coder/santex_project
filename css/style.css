@@ -138,6 +138,7 @@ input:not([type=checkbox]), select { font: 14px var(--body); padding: 5px 7px; b
 #plan .cl { font: 500 13px var(--mono); fill: var(--elec); text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--panel); stroke-width: 4px; }
 #plan .el { font: 600 15px var(--mono); fill: var(--fg); pointer-events: none; paint-order: stroke; stroke: var(--panel); stroke-width: 4px; }
 #plan .pl { font: 500 13px var(--mono); text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--panel) !important; stroke-width: 4px !important; }
+#plan .pl.hd2 { fill: var(--hot); font-weight: 600; font-size: 22px; }
 #plan .pl.ps { fill: var(--sew); } #plan .pl.pc { fill: var(--cold); } #plan .pl.ph { fill: var(--hot); }
 #plan .fl { stroke-dasharray: 10 6; }
 #plan .co circle, #plan .vt circle { fill: var(--panel); stroke: var(--sew); stroke-width: 3; }
