@@ -170,6 +170,16 @@ export function squat() {
   line(g, [V3(0.12, 0.36, -0.24), V3(0.12, 0.08, -0.24), V3(0.05, 0.05, -0.2)], 0.012, M.chrome);
   return g;
 }
+// Gigiyenik dush: unitaz yoki chashagen yonida devorda, aralashtirgich, shlang va leyka (joyi o'ngda, devorga yaqin)
+export function hygShower() {
+  const g = G(), x = 0.38, z = -0.3;
+  B(g, 0.07, 0.07, 0.04, M.chrome, x, 0.78, z);
+  C(g, 0.012, 0.05, M.chrome, x, 0.88, z + 0.02);
+  line(g, [V3(x, 0.78, z + 0.03), V3(x + 0.04, 0.55, z + 0.06), V3(x + 0.12, 0.7, z + 0.04)], 0.007, M.chrome);
+  B(g, 0.04, 0.04, 0.03, M.chrome, x + 0.12, 0.92, z);
+  C(g, 0.016, 0.12, M.chrome, x + 0.12, 0.98, z + 0.03, "y", 0.02);
+  return g;
+}
 // Tahorat joyi: devorga past o'rnatilgan aralashtirgich, kafel supa, pol trapi va kichik o'rindiq
 export function wudu() {
   const g = G(), w = 0.8, d = 0.5;
@@ -183,8 +193,23 @@ export function wudu() {
   return g;
 }
 
-export function bathtub() {
-  const g = G(), w = 1.7, d = 0.75, H = 0.56, t = 0.07;
+// Burchak vanna: chorak doira shaklida, burchagi orqa-chapda (-x, -z), oldi egri
+export function bathtubCorner(R = 1.5) {
+  const g = G(), H = 0.56, x0 = -R / 2, z0 = -R / 2;
+  const q = (r, h, mat, y) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 32, 1, false, 0, Math.PI / 2), mat);
+    m.position.set(x0, y + h / 2, z0); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  q(R, H, M.ceramic, 0);
+  q(R - 0.09, 0.012, M.white, H - 0.2);
+  q(R - 0.07, 0.02, M.white, H - 0.01).material = M.white;
+  line(g, [V3(x0 + 0.12, H, z0 + 0.35), V3(x0 + 0.12, H + 0.14, z0 + 0.35), V3(x0 + 0.27, H + 0.14, z0 + 0.35)], 0.012, M.chrome);
+  C(g, 0.03, 0.01, M.chrome, x0 + 0.35, H - 0.19, z0 + 0.35);
+  return g;
+}
+
+export function bathtub(w = 1.7, d = 0.75) {
+  const g = G(), H = 0.56, t = 0.07;
   B(g, w, H - 0.2, d, M.ceramic, 0, 0, 0);
   B(g, w, 0.2, t, M.ceramic, 0, H - 0.2, d / 2 - t / 2);
   B(g, w, 0.2, t, M.ceramic, 0, H - 0.2, -d / 2 + t / 2);

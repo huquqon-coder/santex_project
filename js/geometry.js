@@ -38,6 +38,14 @@ export function nearestWall(p, x, y) {
   return opts.sort((a, b) => a.d - b.d)[0];
 }
 
+// Burchak vanna uchun burilish, gradus: vannaning orqa (yuqori) va chap tomoni eng yaqin ikki devorga tegadi
+export function cornerAngle(p, x, y) {
+  const r = roomAt(p, x, y);
+  if (!r) return 0;
+  const n = y - r.y < r.y + r.d - y, w = x - r.x < r.x + r.w - x;
+  return n ? (w ? 0 : 90) : w ? -90 : 180;
+}
+
 export function overlaps(p) {
   const out = [];
   p.rooms.forEach((a, i) => p.rooms.slice(i + 1).forEach((b) => {

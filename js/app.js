@@ -1,4 +1,4 @@
-import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, TANK_PLACES, TANK_VOLUMES, WALL_COLOR, WALL_COLORS, WALL_MATERIALS, emptyProject, mountH, normalize, sampleProject, tankBase, uid } from "./model.js";
+import { BATH_TYPES, ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, TANK_PLACES, TANK_VOLUMES, WALL_COLOR, WALL_COLORS, WALL_MATERIALS, emptyProject, kindOf, mountH, tankNeed, normalize, sampleProject, tankBase, uid } from "./model.js";
 import { PANEL_HEIGHTS, PANEL_TYPES, RAD_KINDS } from "./radiators.js";
 import { COVERS, STEPS } from "./ufh.js";
 import { CABLE_SPECS, METALS, SECTIONS, busCount, lightOf, watts } from "./electric.js";
@@ -224,13 +224,23 @@ function selectionHtml() {
       h += `<p class="hint">${E.labels.get(i.id) || ""}: ${c ? `${c.keys > 1 ? "2 klavishli, " : ""}yoqadi ${c.lights.map((l) => E.labels.get(l.id)).join(", ")}` : "hech qaysi chiroqqa bog'lanmagan"}. Chiroqni tanlab, viklyuchatelini o'zgartirish mumkin.</p>`;
     }
     if (i.kind === "jbox") h += E.boxes.filter((b) => b.id === i.id).map(boxHtml).join("") || `<p class="hint">Korobkaga ulanadigan nuqta yo'q: xonada kamida ikki nuqta bo'lishi kerak.</p>`;
+    if (i.kind === "toilet" || i.kind === "squat") h += `<label class="chk"><input type="checkbox" id="iHyg" ${i.hyg ? "checked" : ""}> Gigiyenik dush (yonida, issiq va sovuq suv bilan)</label>`;
+    if (i.kind === "bathtub") {
+      const b = kindOf(i);
+      h += `<div class="row">` + field("iBt", "Turi", sel("iBt", Object.entries(BATH_TYPES).map(([k, v]) => [k, v.name]), b.btype)) +
+        field("iBs", "O'lchami, sm", sel("iBs", BATH_TYPES[b.btype].sizes.map((s) => [s, s]), `${b.w}×${b.d}`)) + `</div>` +
+        (b.btype === "corner" ? `<p class="hint">Burchak vanna xonaning eng yaqin burchagiga o'zi buriladi.</p>` : "");
+    }
     if (i.kind === "tank") {
-      const w = ctx.res.plumb;
-      h += `<div class="row">` + field("iVol", "Hajmi, l", sel("iVol", TANK_VOLUMES.map((v) => [String(v), String(v)]), String(i.vol || 500))) +
-        field("iPlace", "Joyi", sel("iPlace", Object.entries(TANK_PLACES).map(([k, v]) => [k, v.name]), i.place || "stand")) + `</div>` +
-        (i.place === "stand" ? field("iStand", "Tagkursi balandligi, sm", numI("iStand", i.stand ?? 300, 50, 800, 10)) : "") +
-        `<label class="chk"><input type="checkbox" id="iPump" ${i.pump || i.place === "ground" ? "checked" : ""} ${i.place === "ground" ? "disabled" : ""}> Nasos stansiyasi</label>` +
-        `<p class="hint">Bochka tubi ${fmt(tankBase(i, p) / 100, 1)} m balandlikda. ${pumped(i) ? "Suvni nasos beradi." : "Suv o'z og'irligi bilan oqadi: har 1 m balandlik 0,1 bar bosim beradi."}</p>` +
+      const w = ctx.res.plumb, need = tankNeed(p), pl = i.place || "stand", forced = pl === "ground" || pl === "underground";
+      const base = tankBase(i, p) / 100;
+      h += `<div class="row">` + field("iVol", "Hajmi, l", sel("iVol", [["auto", `Avtomatik (${need.vol})`], ...TANK_VOLUMES.map((v) => [String(v), String(v)])], String(i.vol || "auto"))) +
+        field("iPlace", "Joyi", sel("iPlace", Object.entries(TANK_PLACES).map(([k, v]) => [k, v.name]), pl)) + `</div>` +
+        (i.vol === "auto" || !i.vol ? `<p class="hint">Uy maydoniga qarab taxminan ${need.people} kishi, kuniga ${fmt(need.day)} l: bir kunlik zaxira uchun ${need.vol} l bochka.</p>` : "") +
+        (pl === "stand" || pl === "tower" ? field("iStand", pl === "tower" ? "Minora balandligi, sm" : "Tagkursi balandligi, sm", numI("iStand", i.stand ?? TANK_PLACES[pl].h, 50, 2000, 10)) : "") +
+        (pl === "underground" ? field("iDepth", "Bochka tubi yer ostida, sm", numI("iDepth", i.depth ?? TANK_PLACES.underground.depth, 100, 600, 10)) : "") +
+        `<label class="chk"><input type="checkbox" id="iPump" ${i.pump || forced ? "checked" : ""} ${forced ? "disabled" : ""}> Nasos stansiyasi</label>` +
+        `<p class="hint">Bochka tubi ${base < 0 ? `yer ostida ${fmt(-base, 1)} m chuqurlikda` : `${fmt(base, 1)} m balandlikda`}. ${pumped(i) ? "Suvni nasos beradi." : "Suv o'z og'irligi bilan oqadi: har 1 m balandlik 0,1 bar bosim beradi."}</p>` +
         (w.fill.length ? "" : `<p class="hint">Suv kirishi qo'yilsa, bochka shahar suvidan o'zi to'ladi.</p>`);
     }
     if (i.kind === "socket" || i.kind === "power") h += field("iW", "Hisobiy quvvat, W", `<input type="number" id="iW" min="1" max="10000" step="50" value="${i.watts ?? ""}" placeholder="${watts(i)}">`);
@@ -419,8 +429,8 @@ $("side").addEventListener("change", (e) => {
     iN: () => (it.n = Math.max(1, n || 1)), iW: () => (it.watts = opt(v)), iH: () => (it.h = opt(v)),
     pCirc: () => (p.circ = v), pLoop: () => (p.loop = v), pFuel: () => (p.fuel = v),
     pPit: () => (p.pit = n), pElec: () => (p.elecMode = v), pVent: () => (p.sewerVent = v),
-    iSw: () => (it.sw = v || undefined), iVol: () => (it.vol = n), iPlace: () => (it.place = v), iStand: () => (it.stand = n),
-    iPump: () => (it.pump = e.target.checked),
+    iSw: () => (it.sw = v || undefined), iVol: () => (it.vol = v === "auto" ? "auto" : n), iPlace: () => { it.place = v; delete it.stand; }, iStand: () => (it.stand = n), iDepth: () => (it.depth = n),
+    iPump: () => (it.pump = e.target.checked), iHyg: () => (it.hyg = e.target.checked), iBt: () => { it.btype = v; delete it.bsize; }, iBs: () => (it.bsize = v),
     cFeed: () => (p.boxCable = { ...(p.boxCable || {}), feed: v }), cLight: () => (p.boxCable = { ...(p.boxCable || {}), light: v }),
     cSock: () => (p.boxCable = { ...(p.boxCable || {}), socket: v }), cPow: () => (p.boxCable = { ...(p.boxCable || {}), power: v }),
   }[id];
@@ -495,8 +505,24 @@ const exportRep = async (kind) => {
   if (!repRows.length) renderRep();
   const { exportPdf, exportXlsx } = await import("./export.js");
   const price = (r) => priceOf(r, ctx.p.prices);
-  try { await (kind === "pdf" ? exportPdf : exportXlsx)(repRows, price, { name: ctx.p.name }); }
-  catch (e) { console.error(e); alert("Fayl tayyorlanmadi: " + e.message); }
+  const btn = $(kind), label = btn.textContent;
+  btn.disabled = true;
+  try {
+    if (kind === "pdf") {
+      // Reja va 3D rasmlar bilan: rasmlar alohida, ko'rinmaydigan oynada chiziladi
+      const meta = { name: ctx.p.name, project: ctx.p };
+      if (fv(ctx.p, 0).rooms.length || ctx.p.rooms.length) {
+        const { snapshots } = await import("./view3d.js");
+        const total = 6 + ctx.p.rooms.filter((r) => floorOf(r) < (ctx.p.floors || 1)).length * 4;
+        let done = 0;
+        btn.textContent = `3D 0/${total}`;
+        meta.shots = await snapshots(ctx.p, ctx.res, { onStep: () => (btn.textContent = `3D ${++done}/${total}`) });
+      }
+      btn.textContent = "PDF…";
+      await exportPdf(repRows, price, meta);
+    } else await exportXlsx(repRows, price, { name: ctx.p.name });
+  } catch (e) { console.error(e); alert("Fayl tayyorlanmadi: " + e.message); }
+  finally { btn.disabled = false; btn.textContent = label; }
 };
 $("xlsx").onclick = () => exportRep("xlsx");
 $("pdf").onclick = () => exportRep("pdf");

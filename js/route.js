@@ -65,7 +65,34 @@ class Heap {
   get size() { return this.a.length; }
 }
 
+// Burilishni hisobga oluvchi qidiruv: holat = katak va kelgan yo'nalish, har burilishga g.turn jarima
+function pathToNetTurns(g, start, inNet) {
+  const T = g.turn, N = g.cost.length, D = [-1, 1, -g.nx, g.nx];
+  const dist = new Float64Array(N * 5).fill(Infinity), prev = new Int32Array(N * 5).fill(-1);
+  const h = new Heap(), s0 = start * 5 + 4;
+  dist[s0] = 0; h.push(s0, 0);
+  while (h.size) {
+    const [d, s] = h.pop();
+    if (d > dist[s]) continue;
+    const c = Math.floor(s / 5), dir = s % 5;
+    if (inNet.has(c)) {
+      const path = [c];
+      for (let q = prev[s]; q !== -1; q = prev[q]) path.push(Math.floor(q / 5));
+      return path;
+    }
+    const i = c % g.nx;
+    for (let k = 0; k < 4; k++) {
+      const n = c + D[k];
+      if (n < 0 || n >= N || (k === 0 && i === 0) || (k === 1 && i === g.nx - 1)) continue;
+      const ns = n * 5 + k, nd = d + g.cost[n] + (dir !== 4 && dir !== k ? T : 0);
+      if (nd < dist[ns]) { dist[ns] = nd; prev[ns] = s; h.push(ns, nd); }
+    }
+  }
+  return null;
+}
+
 function pathToNet(g, start, inNet) {
+  if (g.turn) return pathToNetTurns(g, start, inNet);
   const dist = new Float64Array(g.cost.length).fill(Infinity), prev = new Int32Array(g.cost.length).fill(-1);
   const h = new Heap();
   dist[start] = 0; h.push(start, 0);
@@ -157,7 +184,7 @@ export function multiFloor(p, root, targets, opts = {}, cache = new Map(), walk)
   const base = floorOf(root), height = (p.h + (p.slab ?? 30)) / 100;
   const grid = (f) => {
     const key = f + JSON.stringify(opts);
-    if (!cache.has(key)) cache.set(key, buildGrid(fv(p, f), opts));
+    if (!cache.has(key)) cache.set(key, Object.assign(buildGrid(fv(p, f), opts), { turn: opts.turn || 0 }));
     return cache.get(key);
   };
   const segs = [], risers = [];

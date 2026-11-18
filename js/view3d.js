@@ -1,7 +1,7 @@
 // 3D ko'rinish. Ma'lumot rejadan olinadi, o'lchamlar metrga o'tkaziladi.
-import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, TANK_DIAM, WALL_COLOR, mountH, tankBase } from "./model.js";
+import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, TANK_DIAM, WALL_COLOR, kindOf, mountH, tankBase, tankVol } from "./model.js";
 import { pumped } from "./plumbing.js";
-import { bounds, floorList, floorOf, fv, nearestWall, openingRect, roomAt, sideInfo, wallBoxes } from "./geometry.js";
+import { bounds, cornerAngle, floorList, floorOf, fv, nearestWall, openingRect, roomAt, sideInfo, wallBoxes } from "./geometry.js";
 import * as P from "./models3d.js";
 
 const THREE = window.THREE;
@@ -36,10 +36,11 @@ const roofTiles = (x, s) => {
 };
 
 export class View3D {
-  constructor(el) {
+  // still: true bo'lsa ekranga chiqmaydi, faqat rasm olish uchun (hisobot)
+  constructor(el, { still = false } = {}) {
     this.el = el;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: still });
+    this.renderer.setPixelRatio(still ? 1 : Math.min(devicePixelRatio, 2));
     this.renderer.outputEncoding = THREE.sRGBEncoding;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -65,10 +66,54 @@ export class View3D {
       ghost: new THREE.MeshStandardMaterial({ color: 0x8a9aa2, transparent: true, opacity: 0.14, depthWrite: false }),
     };
     this.root = this.group = new THREE.Group(); this.scene.add(this.root);
-    new ResizeObserver(() => this.resize()).observe(el);
+    this.ro = new ResizeObserver(() => this.resize()); this.ro.observe(el);
     this.resize();
+    if (still) return;
     const loop = () => { this.controls.update(); this.renderer.render(this.scene, this.camera); requestAnimationFrame(loop); };
     loop();
+  }
+  dispose() {
+    this.ro.disconnect();
+    this.root.traverse((n) => n.geometry?.dispose());
+    this.renderer.dispose(); this.renderer.forceContextLoss();
+    this.el.remove();
+  }
+  // Kamerani joylab bitta kadr chizadi va JPEG qaytaradi
+  shot(cam) {
+    const { width: w, height: h } = this.renderer.domElement;
+    cam.updateMatrixWorld();
+    this.renderer.render(this.scene, cam);
+    const url = this.renderer.domElement.toDataURL("image/jpeg", 0.86);
+    return { w, h, data: atob(url.slice(url.indexOf(",") + 1)) };
+  }
+  // To'g'ri burchakli proeksiya: dir tomondan qaraladi, butun model kadrga sig'adi
+  ortho(dir, up = new THREE.Vector3(0, 1, 0), box = new THREE.Box3().setFromObject(this.root)) {
+    const { width: w, height: h } = this.renderer.domElement, c = box.getCenter(new THREE.Vector3());
+    const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
+    cam.up.copy(up); cam.position.copy(c).addScaledVector(dir.clone().normalize(), 200); cam.lookAt(c); cam.updateMatrixWorld();
+    const inv = cam.matrixWorldInverse, lo = new THREE.Vector3(Infinity, Infinity, 0), hi = new THREE.Vector3(-Infinity, -Infinity, 0);
+    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+      const q = new THREE.Vector3(x, y, z).applyMatrix4(inv);
+      lo.min(q); hi.max(q);
+    }
+    let cw = (hi.x - lo.x) * 1.08, ch = (hi.y - lo.y) * 1.08;
+    if (cw / ch < w / h) cw = ch * (w / h); else ch = cw / (w / h);
+    const mx = (hi.x + lo.x) / 2, my = (hi.y + lo.y) / 2;
+    Object.assign(cam, { left: mx - cw / 2, right: mx + cw / 2, top: my + ch / 2, bottom: my - ch / 2 });
+    cam.updateProjectionMatrix();
+    this.sun.target.position.copy(c);
+    return this.shot(cam);
+  }
+  // Istiqbolli ko'rinish: markazdan az (0 = janub) burchakda, elev balandlikdan
+  persp(center, radius, az, elev, k = 1.02) {
+    const { width: w, height: h } = this.renderer.domElement, fov = 38;
+    const cam = new THREE.PerspectiveCamera(fov, w / h, 0.05, 500);
+    const dist = (radius / Math.sin(((fov / 2) * Math.PI) / 180)) * k;
+    const a = (az * Math.PI) / 180, e = (elev * Math.PI) / 180;
+    cam.position.set(center.x + Math.cos(e) * Math.sin(a) * dist, center.y + Math.sin(e) * dist, center.z + Math.cos(e) * Math.cos(a) * dist);
+    cam.lookAt(center);
+    this.sun.target.position.copy(center);
+    return this.shot(cam);
   }
   resize() {
     const w = this.el.clientWidth, h = this.el.clientHeight;
@@ -301,19 +346,31 @@ export class View3D {
         }
         case "heater": this.place(P.heater(), wx, Math.min(1.1, Math.max(0.9, wallH - 0.9)), wz, w.ix, w.iz); break;
         case "sink": this.place(P.sink(), x, 0, z, w.ix, w.iz); break;
-        case "toilet": this.place(P.toilet(), x, 0, z, w.ix, w.iz); break;
-        case "squat": this.place(P.squat(), x, 0, z, w.ix, w.iz); break;
+        case "toilet": this.place(P.toilet(), x, 0, z, w.ix, w.iz); if (i.hyg) this.place(P.hygShower(), x, 0, z, w.ix, w.iz); break;
+        case "squat": this.place(P.squat(), x, 0, z, w.ix, w.iz); if (i.hyg) this.place(P.hygShower(), x, 0, z, w.ix, w.iz); break;
         case "wudu": this.place(P.wudu(), x, 0, z, w.ix, w.iz); break;
-        case "bathtub": this.place(P.bathtub(), x, 0, z, w.ix, w.iz); break;
+        case "bathtub": {
+          const b = kindOf(i);
+          if (b.btype === "corner") { const o = this.place(P.bathtubCorner(m(b.w)), x, 0, z); o.rotation.y = (-cornerAngle(p, i.x, i.y) * Math.PI) / 180; }
+          else this.place(P.bathtub(m(b.w), m(b.d)), x, 0, z, w.ix, w.iz);
+          break;
+        }
         case "shower": this.place(P.shower(), x, 0, z, w.ix, w.iz); break;
         case "washer": this.place(P.washer(), x, 0, z, w.ix, w.iz); break;
         case "waterin": this.place(P.waterIn(), x, 0, z); break;
         case "sewerout": this.place(P.sewerOut(), x, 0, z); break;
         case "tank": {
-          const d = (TANK_DIAM[i.vol] || 80) / 100, h = Math.max(0.6, (i.vol || 500) / 1000 / (Math.PI * d * d / 4)), base = m(tankBase(i, p));
-          this.place(P.waterTank(d, h, i.place === "stand" ? base : 0), x, base, z);
-          // Bochkadan pastga tushuvchi quvur va nasos stansiyasi
+          const vol = tankVol(i, p), d = (TANK_DIAM[vol] || 80) / 100, h = Math.max(0.6, vol / 1000 / (Math.PI * d * d / 4)), base = m(tankBase(i, p));
+          const under = i.place === "underground";
+          // Yer ostidagi bochka yotqizilgan holda ko'miladi, ustida faqat lyuk ko'rinadi
+          const tank = this.place(P.waterTank(d, under ? Math.min(h, 1.8) : h, i.place === "stand" || i.place === "tower" ? base : 0), x, base, z);
+          if (under) {
+            tank.traverse((n) => { if (n.material) { n.material = n.material.clone(); n.material.transparent = true; n.material.opacity = 0.55; } });
+            this.box(x - 0.35, -0.3, z - 0.35, 0.7, 0.33, 0.7, this.mat.cold);
+          }
+          // Bochkadan pastga tushuvchi yoki yer ostidan chiquvchi quvur va nasos stansiyasi
           if (base > 0.3) this.tube(new THREE.Vector3(x + d / 2 + 0.08, base + 0.08, z), new THREE.Vector3(x + d / 2 + 0.08, 0.3, z), 0.016, this.mat.blue);
+          if (under) this.tube(new THREE.Vector3(x + d / 2 - 0.1, base + 0.2, z), new THREE.Vector3(x + d / 2 - 0.1, 0.3, z), 0.016, this.mat.blue);
           if (pumped(i)) this.place(P.pumpStation(), x + d / 2 + 0.5, 0, z);
           break;
         }
@@ -409,4 +466,50 @@ export class View3D {
       this.tube(V(cx, fy, cz), V(cx, H + 2.4, cz), f, P.M.steel);
     }
   }
+}
+
+// Hisobot uchun rasmlar: uyning 6 proeksiyasi va har bir xonaning 4 ko'rinishi.
+// Ekrandan tashqaridagi alohida oynada chiziladi, foydalanuvchining 3D kamerasiga tegmaydi.
+export async function snapshots(all, res, { w = 960, h = 640, onStep } = {}) {
+  const el = document.createElement("div");
+  Object.assign(el.style, { position: "fixed", left: "-20000px", top: "0", width: w + "px", height: h + "px" });
+  document.body.appendChild(el);
+  const v = new View3D(el, { still: true });
+  v.renderer.setSize(w, h); v.camera.aspect = w / h; v.camera.updateProjectionMatrix();
+  v.scene.background = new THREE.Color(0xf2f5f5);
+  const V = (x, y, z) => new THREE.Vector3(x, y, z), tick = () => new Promise((ok) => setTimeout(ok, 0));
+  const sys = { heat: true, elec: true, plumb: true };
+  const out = { house: [], rooms: [] };
+  try {
+    v.update(all, res, { ...sys, mode: "full", floor: "all" });
+    for (const [title, dir] of [["Old tomondan (janub)", V(0, 0, 1)], ["Orqa tomondan (shimol)", V(0, 0, -1)], ["Chap tomondan (g'arb)", V(-1, 0, 0)], ["O'ng tomondan (sharq)", V(1, 0, 0)]]) {
+      out.house.push({ title, ...v.ortho(dir) }); onStep?.(); await tick();
+    }
+    const box = new THREE.Box3().setFromObject(v.root), c = box.getCenter(V(0, 0, 0)), R = box.getSize(V(0, 0, 0)).length() / 2;
+    out.house.push({ title: "Izometriya (janubi-sharqdan)", ...v.persp(c, R * 0.72, 40, 32) }); onStep?.(); await tick();
+    v.update(all, res, { ...sys, mode: "cut", floor: "all" });
+    out.house.push({ title: "Ustidan (devorlar kesilgan)", ...v.ortho(V(0, 1, 0), V(0, 0, -1)) }); onStep?.(); await tick();
+    // Har bir xona: kesilgan devorlar bilan, to'rt burchakdan
+    const step = (all.h + (all.slab ?? 30)) / 100;
+    for (const f of floorList(all)) {
+      const rooms = fv(all, f).rooms;
+      if (!rooms.length) continue;
+      v.update(all, res, { ...sys, mode: "cut", floor: String(f) });
+      for (const r of rooms) {
+        const t = m(all.wallT), cx = m(r.x + r.w / 2), cz = m(r.y + r.d / 2), rad = Math.hypot(m(r.w) + 2 * t, m(r.d) + 2 * t, 1.2) / 2;
+        // Faqat shu xona va uning devorlari ko'rinadi, qo'shni xonalar yashiriladi
+        // Xona ichidan 5 sm tashqari: o'z devorlari kiradi, devor ortidagi qo'shni xona jihozlari kirmaydi
+        const rb = new THREE.Box3(V(m(r.x) - 0.05, f * step - 3, m(r.y) - 0.05), V(m(r.x + r.w) + 0.05, f * step + 6, m(r.y + r.d) + 0.05));
+        const bb = new THREE.Box3();
+        v.root.traverse((o) => { if (o.isMesh || o.isLine) o.visible = bb.setFromObject(o).intersectsBox(rb); });
+        const imgs = [];
+        for (const [title, az] of [["Janubi-sharqdan", 45], ["Shimoli-sharqdan", 135], ["Shimoli-g'arbdan", 225], ["Janubi-g'arbdan", 315]]) {
+          imgs.push({ title, ...v.persp(V(cx, f * step + 0.4, cz), rad, az, 55, 0.8) }); onStep?.(); await tick();
+        }
+        v.root.traverse((o) => { o.visible = true; });
+        out.rooms.push({ name: r.name, floor: f, w: r.w, d: r.d, imgs });
+      }
+    }
+  } finally { v.dispose(); }
+  return out;
 }

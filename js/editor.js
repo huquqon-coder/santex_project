@@ -1,6 +1,6 @@
 // 2D reja muharriri (SVG). Tahrirlash xona, ochilma va jihozlar ustida ishlaydi.
-import { ITEM_KINDS, ROOM_TYPES, item, opening, room } from "./model.js";
-import { bounds, floorOf, fv, nearestSide, nearestWall, openingRect, roomAt } from "./geometry.js";
+import { ITEM_KINDS, ROOM_TYPES, item, kindOf, opening, room } from "./model.js";
+import { bounds, cornerAngle, floorOf, fv, nearestSide, nearestWall, openingRect, roomAt } from "./geometry.js";
 
 const SNAP = 10;
 const snap = (v) => Math.round(v / SNAP) * SNAP;
@@ -41,7 +41,8 @@ function symbol(kind, k) {
     case "toilet": return `<rect x="${-w}" y="${-d}" width="${k.w}" height="16"/><ellipse cx="0" cy="10" rx="${w - 3}" ry="${d - 14}"/>`;
     case "squat": return `<rect x="${-w + 6}" y="${-d + 6}" width="${k.w - 12}" height="${k.d - 12}" rx="8"/><ellipse cx="0" cy="-4" rx="10" ry="15"/><path d="M${-w + 10} ${d - 18}h12M${w - 22} ${d - 18}h12"/>`;
     case "wudu": return `<rect x="${-w + 4}" y="${-d + 4}" width="${k.w - 8}" height="${k.d - 8}"/><rect x="-6" y="-6" width="12" height="12"/><path d="M-10 ${-d + 4}v8h20v-8"/>`;
-    case "bathtub": return `<rect x="${-w + 7}" y="${-d + 7}" width="${k.w - 14}" height="${k.d - 14}" rx="22"/><circle cx="${w - 24}" cy="0" r="4"/>`;
+    case "bathtub": if (k.btype === "corner") return `<path d="M${-w + 6} ${-d + 6}H${w - 6}A${k.w - 12} ${k.d - 12} 0 0 1 ${-w + 6} ${d - 6}Z"/><path d="M${-w + 14} ${-d + 14}H${w - 26}A${k.w - 40} ${k.d - 40} 0 0 1 ${-w + 14} ${d - 26}Z"/><circle cx="${-w + 34}" cy="${-d + 34}" r="4"/>`;
+      return `<rect x="${-w + 7}" y="${-d + 7}" width="${k.w - 14}" height="${k.d - 14}" rx="22"/><circle cx="${w - 24}" cy="0" r="4"/>`;
     case "shower": return `<path d="M${-w} ${-d}L${w} ${d}M${w} ${-d}L${-w} ${d}"/><circle r="6"/>`;
     case "washer": return `<circle r="${w - 9}"/><circle r="${w - 17}"/>`;
     case "heater": return `<circle r="${w - 8}"/><path d="M-9 0H9M0 -9V9"/>`;
@@ -317,17 +318,17 @@ export class Editor {
     if (tab === "elec" && res) this.elec(o, res.elec);
     if (tab === "plumb" && res) this.plumb(o, res.plumb);
     for (const i of p.items) {
-      const k = ITEM_KINDS[i.kind]; if (!k) continue;
+      const k = ITEM_KINDS[i.kind] && kindOf(i); if (!k) continue;
       const on = TAB_GROUP[tab] === k.group;
       if (!on && tab !== "plan") continue;
       const s = sel?.type === "item" && sel.id === i.id;
       const attr = on ? `data-t="item" data-id="${i.id}"` : "";
       const cls = `it ${on ? "" : "dim"} ${s ? "s" : ""}`;
       const hit = k.round ? 2 + k.w / 2 : 0;
-      const ang = i.kind === "stairs" ? (i.rot ? 90 : 0) : wallAngle(p, i, k);
+      const ang = i.kind === "stairs" ? (i.rot ? 90 : 0) : k.btype === "corner" ? cornerAngle(p, i.x, i.y) : wallAngle(p, i, k);
       o.push(`<g class="${cls}" ${attr} transform="translate(${i.x} ${i.y})${ang ? ` rotate(${ang})` : ""}"><title>${k.name}</title>` +
         (hit ? `<circle class="bg" r="${hit}"/>` : `<rect class="bg" x="${-k.w / 2}" y="${-k.d / 2}" width="${k.w}" height="${k.d}"/>`) +
-        symbol(i.kind, k) + (i.kind === "light" ? `<text class="lt" y="${-k.w / 2 - 6}" style="fill:var(--fg);stroke:none;font:600 15px var(--mono);text-anchor:middle">${LIGHT_LETTER[i.ltype] || ""}</text>` : "") + `</g>`);
+        symbol(i.kind, k) + (i.hyg ? `<circle cx="${k.w / 2 + 9}" cy="${-k.d / 2 + 9}" r="6"/><path d="M${k.w / 2 + 9} ${-k.d / 2 + 15}v8"/>` : "") + (i.kind === "light" ? `<text class="lt" y="${-k.w / 2 - 6}" style="fill:var(--fg);stroke:none;font:600 15px var(--mono);text-anchor:middle">${LIGHT_LETTER[i.ltype] || ""}</text>` : "") + `</g>`);
     }
     if (sel?.type === "room" && tab === "plan") {
       const r = p.rooms.find((x) => x.id === sel.id);

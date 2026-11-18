@@ -18,6 +18,8 @@ const PIPES = [
 // Qozon oldidagi po'lat qism: har liniyada 2 m, ichki kesimi PPR dan kichik emas
 const STEEL = [{ dn: 20, id: 21.2 }, { dn: 25, id: 27.1 }, { dn: 32, id: 35.9 }, { dn: 40, id: 41 }, { dn: 50, id: 53 }, { dn: 65, id: 68 }];
 const STEEL_M = 4;
+// Quvur yo'li: har burilish taxminan 1,6 m qo'shimcha quvurga teng hisoblanadi, shunda yo'l kam burilish bilan tanlanadi
+const TURN = 8;
 
 function fric(gLh, idMm) {
   const d = idMm / 1000, v = gLh / 3.6e6 / ((Math.PI / 4) * d * d), Re = Math.max((v * d) / 0.41e-6, 1);
@@ -173,7 +175,7 @@ export function computeHeating(p) {
     warnings.push(`${f + 1}-qavatda kollektor avtomatik joylandi. "Kollektor" asbobi bilan o'zingiz qo'yishingiz mumkin.`);
   }
   const nearest = (f, x, y) => mans.filter((m) => m.floor === f).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
-  const cache = new Map(), gridOf = (f) => { if (!cache.has(f)) cache.set(f, buildGrid(fv(p, f))); return cache.get(f); };
+  const cache = new Map(), gridOf = (f) => { if (!cache.has(f)) cache.set(f, Object.assign(buildGrid(fv(p, f)), { turn: TURN })); return cache.get(f); };
   const star = (m, t, kind) => {
     const r = routeTree(gridOf(m.floor), m, [t]);
     const len = r.length;
@@ -204,7 +206,7 @@ export function computeHeating(p) {
     ...(collector ? [] : rads.map((r) => ({ x: r.x, y: r.y, floor: r.floor, load: r.power + ENC }))),
     ...out.manifolds.map((m) => ({ x: m.x, y: m.y, floor: m.floor, load: m.load + 2 * ENC })),
   ];
-  const net = multiFloor(p, boiler, mainTargets);
+  const net = multiFloor(p, boiler, mainTargets, { turn: TURN });
   const split = (load) => { const n = Math.floor(load / ENC); return { n, w: load - n * ENC }; };
   for (const s of net.segs) Object.assign(s, { count: split(s.load).n, load: split(s.load).w });
   for (const q of net.risers) Object.assign(q, { count: split(q.load).n, load: split(q.load).w });

@@ -1,5 +1,5 @@
 // Santexnika: suv manbai (shahar suvi yoki bochka), sovuq va issiq suv, kanalizatsiya nishabligi va ventilyatsiyasi.
-import { TANK_PLACES, tankBase } from "./model.js";
+import { BATH_TYPES, TANK_PLACES, kindOf, tankBase, tankVol } from "./model.js";
 import { floorOf, fv, roomAt } from "./geometry.js";
 import { multiFloor, segLen } from "./route.js";
 import { crossings, treeFittings } from "./fittings.js";
@@ -28,7 +28,9 @@ const pipeFor = (sum) => {
   const q = design(sum) / 1000;
   return PPR.find((d) => q / ((Math.PI / 4) * (d.id / 1000) ** 2) <= 1.5) || PPR[PPR.length - 1];
 };
-export const pumped = (t) => !!t && (t.pump || t.place === "ground");
+// Issiq suv sarfi: unitaz va chashagenga gigiyenik dush qo'yilsa, unga ham issiq suv keladi
+export const hotOf = (i) => FIX[i.kind].hot || (i.hyg ? 0.1 : 0);
+export const pumped = (t) => !!t && (t.pump || t.place === "ground" || t.place === "underground");
 const sewerDn = (load) => (load >= 100 || load > 3 ? 110 : 50);
 // Burilish va troyniklar soni: chiziq ichidagi har bir burchak bitta tirsak, har bir yangi tarmoq bitta troynik
 const fittings = (segs) => ({ bends: segs.reduce((a, s) => a + Math.max(0, s.pts.length - 2), 0), tees: Math.max(0, segs.length - 1) });
@@ -54,11 +56,11 @@ export function computePlumbing(p) {
   out.source = tank ? "tank" : inlet ? "city" : null;
   if (tank) {
     const base = tankBase(tank, p) / 100;
-    out.tank = { ...tank, base, place: TANK_PLACES[tank.place] ? tank.place : "stand", vol: tank.vol || 500 };
+    out.tank = { ...tank, base, place: TANK_PLACES[tank.place] ? tank.place : "stand", vol: tankVol(tank, p) };
     if (inlet) {
       const t = multiFloor(p, inlet, [{ x: tank.x, y: tank.y, load: 0.3, floor: floorOf(tank) }], G, cache);
       out.fill = t.segs.map((s) => ({ ...s, dn: 25, len: segLen(s) }));
-      add(out.coldLen, 25, out.fill.reduce((a, s) => a + s.len, 0) + base + 1);
+      add(out.coldLen, 25, out.fill.reduce((a, s) => a + s.len, 0) + Math.abs(base) + 1);
       notes.push("Bochka shahar suvidan qalqovichli klapan orqali to'ladi.");
     } else notes.push("Suv kirishi qo'yilmagan: bochka tashib keltirilgan suv bilan to'ldiriladi.");
   }
@@ -66,18 +68,18 @@ export function computePlumbing(p) {
   if (!source) warnings.push("Suv manbai yo'q: \"Suv kirishi\" yoki \"Suv bochkasi\" qo'ying.");
   else {
     const targets = fx.filter((f) => FIX[f.kind].cold).map((f) => ({ x: f.x, y: f.y, load: FIX[f.kind].cold, floor: floorOf(f), f }));
-    const hotSum = fx.reduce((a, f) => a + FIX[f.kind].hot, 0);
+    const hotSum = fx.reduce((a, f) => a + hotOf(f), 0);
     if (heater) targets.push({ x: heater.x, y: heater.y, load: Math.max(0.1, hotSum), floor: floorOf(heater) });
     const t = multiFloor(p, source, targets, G, cache, () => 1);
     if (!t.ok) warnings.push("Sovuq suv yo'li topilmadi.");
     out.cold = t.segs.map((s) => ({ ...s, dn: pipeFor(s.load).dn, len: segLen(s) }));
     out.coldRoots = [{ x: source.x, y: source.y, floor: floorOf(source) }, ...t.risers.map((q) => ({ x: q.x, y: q.y, floor: q.to }))];
     for (const q of t.risers) { q.dn = pipeFor(q.load).dn; out.risers.push({ ...q, kind: "cold" }); add(out.coldLen, q.dn, q.len); }
-    const main = pipeFor(fx.reduce((a, f) => a + FIX[f.kind].cold + FIX[f.kind].hot, 0));
-    if (tank && tank.place !== "ground") add(out.coldLen, main.dn, tankBase(tank, p) / 100 + 0.5);
+    const main = pipeFor(fx.reduce((a, f) => a + FIX[f.kind].cold + hotOf(f), 0));
+    if (tank && tank.place !== "ground") add(out.coldLen, main.dn, Math.abs(tankBase(tank, p)) / 100 + 0.5);
     out.mainDn = main.dn;
     // Bochkadan bosim: tub balandligi minus kran balandligi va yo'qotishlar
-    if (tank && tank.place === "ground" && !tank.pump) notes.push("Yerdagi bochkadan suv o'zi chiqmaydi: nasos stansiyasi hisobga qo'shildi.");
+    if (tank && (tank.place === "ground" || tank.place === "underground") && !tank.pump) notes.push(`${tank.place === "ground" ? "Yerdagi" : "Yer ostidagi"} bochkadan suv o'zi chiqmaydi: nasos stansiyasi hisobga qo'shildi.`);
     if (tank && !pumped(tank)) {
       const base = tankBase(tank, p) / 100;
       // Har jihoz turi uchun eng yomon holat
@@ -91,10 +93,10 @@ export function computePlumbing(p) {
     }
   }
 
-  const hotFx = fx.filter((f) => FIX[f.kind].hot);
+  const hotFx = fx.filter((f) => hotOf(f));
   if (hotFx.length && !heater) warnings.push("Issiq suv uchun suv isitkich qo'yilmagan.");
   else if (heater && hotFx.length) {
-    const t = multiFloor(p, heater, hotFx.map((f) => ({ x: f.x, y: f.y, load: FIX[f.kind].hot, floor: floorOf(f) })), G, cache);
+    const t = multiFloor(p, heater, hotFx.map((f) => ({ x: f.x, y: f.y, load: hotOf(f), floor: floorOf(f) })), G, cache);
     out.hot = t.segs.map((s) => ({ ...s, dn: pipeFor(s.load).dn, len: segLen(s) }));
     out.hotRoots = [{ x: heater.x, y: heater.y, floor: floorOf(heater) }, ...t.risers.map((q) => ({ x: q.x, y: q.y, floor: q.to }))];
     for (const q of t.risers) { q.dn = pipeFor(q.load).dn; out.risers.push({ ...q, kind: "hot" }); add(out.hotLen, q.dn, q.len); }
@@ -108,7 +110,7 @@ export function computePlumbing(p) {
   for (const f of fx) {
     const v = Math.abs(FIX[f.kind].conn - 0.3) + 0.2;
     if (FIX[f.kind].cold) add(out.coldLen, 20, v);
-    if (FIX[f.kind].hot && heater) add(out.hotLen, 20, v);
+    if (hotOf(f) && heater) add(out.hotLen, 20, v);
   }
   if (heater) { add(out.coldLen, 20, 1); add(out.hotLen, 20, 1); }
 
@@ -174,8 +176,10 @@ export function plumbingBom(p, w) {
   // Suv manbai va kirish uzeli
   if (w.tank) {
     const t = w.tank;
-    push("tank_" + t.vol, "Suv bochkasi, plastik", `${t.vol} l`, "dona", 1);
+    push("tank_" + t.vol, t.place === "underground" ? "Suv bochkasi, yer osti uchun (qalin devorli)" : "Suv bochkasi, plastik", `${t.vol} l`, "dona", 1);
     if (t.place === "stand") push("tankstand", "Bochka tagkursi, metall", `${Math.round(t.base * 100)} sm`, "dona", 1);
+    if (t.place === "tower") push("tanktower", "Bochka minorasi, metall", `${Math.round(t.base * 100)} sm`, "dona", 1);
+    if (t.place === "underground") { push("tankpit", "Bochka uchun chuqur qazish va beton taglik", `${Math.round(-t.base * 100)} sm`, "dona", 1); push("tankhatch", "Lyuk va ventilyatsiya quvuri", "", "to'plam", 1); }
     if (w.fill.length) push("float", "Qalqovichli to'ldirish klapani", "1/2\"", "dona", 1);
     push("tankval", "Bochka chiqish krani", "1\"", "dona", 1);
     push("tankover", "Bochka to'kish quvuri", "Ø32", "m", 2);
@@ -199,7 +203,7 @@ export function plumbingBom(p, w) {
   for (const dn of Object.keys(w.hotLen).sort((a, b) => a - b)) push("pprh" + dn, "PPR PN25 armaturali quvur, issiq suv", `Ø${dn}`, "m", w.hotLen[dn] * 1.1);
   const waterL = sum(w.coldLen) + sum(w.hotLen);
   const fxc = live.filter((i) => FIX[i.kind]);
-  const conn = fxc.reduce((a, i) => a + (FIX[i.kind].cold ? 1 : 0) + (FIX[i.kind].hot && n("heater") ? 1 : 0), 0);
+  const conn = fxc.reduce((a, i) => a + (FIX[i.kind].cold ? 1 : 0) + (hotOf(i) && n("heater") ? 1 : 0), 0);
   // Fitinglar diametr bo'yicha alohida qator bo'ladi
   const F = "Santexnika: PPR fitinglar";
   const fit = (k, name, spec, qty) => qty > 0 && rows.push({ g: F, k, name, spec, unit: "dona", qty: Math.ceil(qty) });
@@ -242,6 +246,8 @@ export function plumbingBom(p, w) {
   push("cistern", "Yuvish bachogi, chashagen uchun, quvuri bilan", "", "dona", n("squat"));
   push("sqtrap", "Chashagen sifoni (tirsak)", "Ø110", "dona", n("squat"));
   push("floortrap", "Pol trapi, tahorat joyi uchun", "Ø50", "dona", n("wudu"));
+  const hyg = live.filter((i) => i.hyg && (i.kind === "toilet" || i.kind === "squat")).length;
+  push("hyg", "Gigiyenik dush to'plami: devor aralashtirgichi, shlang, leyka va tutgich", "", "to'plam", hyg);
   push("mixer", "Aralashtirgich (smesitel)", "", "dona", n("sink") + n("bathtub") + n("shower") + n("wudu"));
   push("washv", "Kir mashinasi krani", "1/2\" × 3/4\"", "dona", n("washer"));
   if (n("heater")) push("heatval", "Suv isitkich kranlari", "1/2\"", "dona", n("heater") * 2);
@@ -266,7 +272,10 @@ export function plumbingBom(p, w) {
   }
 
   // Jihozlar
-  for (const k of ["sink", "toilet", "squat", "bathtub", "shower", "heater"]) push("f_" + k, k === "heater" ? "Suv isitkich" : FIX[k].name, "", "dona", n(k));
+  const tubs = {};
+  for (const t of live.filter((i) => i.kind === "bathtub")) { const b = kindOf(t), key = `bath_${b.btype}_${b.w}x${b.d}`; tubs[key] = tubs[key] || { name: BATH_TYPES[b.btype].name, spec: `${b.w}×${b.d} sm`, n: 0 }; tubs[key].n++; }
+  for (const [k, t] of Object.entries(tubs)) push(k, t.name, t.spec, "dona", t.n);
+  for (const k of ["sink", "toilet", "squat", "shower", "heater"]) push("f_" + k, k === "heater" ? "Suv isitkich" : FIX[k].name, "", "dona", n(k));
 
   const L = waterL + sum(w.sewerLen);
   rows.push({ g: "Santexnika ishi", k: "l_fix", name: "Jihozni ulash", unit: "dona", qty: w.fixtures, labor: true });

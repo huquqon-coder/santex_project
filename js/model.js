@@ -49,14 +49,42 @@ export const ITEM_KINDS = {
 };
 
 // Suv bochkasi: hajmi va joyi. Balandlik bochka tubining yerdan balandligi, sm
-export const TANK_VOLUMES = [200, 300, 500, 1000, 1500, 2000];
+export const TANK_VOLUMES = [200, 300, 500, 1000, 1500, 2000, 3000, 5000];
 export const TANK_PLACES = {
   ground: { name: "Yerda" },
-  stand: { name: "Ustunli tagkursida" },
+  stand: { name: "Ustunli tagkursida", h: 300 },
+  tower: { name: "Minorada", h: 800 },
   roof: { name: "Tomda yoki cherdakda" },
+  underground: { name: "Yer ostida", depth: 250 },
 };
-export const TANK_DIAM = { 200: 60, 300: 70, 500: 80, 1000: 110, 1500: 120, 2000: 135 };
-export const tankBase = (t, p) => (t.place === "stand" ? t.stand ?? 300 : t.place === "roof" ? (p.floors || 1) * (p.h + (p.slab ?? 30)) + 20 : 0);
+export const TANK_DIAM = { 200: 60, 300: 70, 500: 80, 1000: 110, 1500: 120, 2000: 135, 3000: 160, 5000: 190 };
+export const tankBase = (t, p) => {
+  if (t.place === "stand" || t.place === "tower") return t.stand ?? TANK_PLACES[t.place].h;
+  if (t.place === "roof") return (p.floors || 1) * (p.h + (p.slab ?? 30)) + 20;
+  if (t.place === "underground") return -(t.depth ?? TANK_PLACES.underground.depth);
+  return 0;
+};
+// Uy kattaligiga qarab bochka: xonalar maydonidan odam soni, kishiga kuniga 150 l, bir kunlik zaxira
+export function tankNeed(p) {
+  const area = p.rooms.filter((r) => ROOM_TYPES[r.type].heated && (r.floor || 0) < (p.floors || 1)).reduce((a, r) => a + (r.w * r.d) / 1e4, 0);
+  const people = Math.max(3, Math.ceil(area / 25)), day = people * 150;
+  return { people, day, vol: TANK_VOLUMES.find((v) => v >= day) || TANK_VOLUMES[TANK_VOLUMES.length - 1] };
+}
+export const tankVol = (t, p) => (t.vol === "auto" || !t.vol ? tankNeed(p).vol : t.vol);
+
+// Vanna turlari va o'lchamlari, sm (eni × chuqurligi rejada)
+export const BATH_TYPES = {
+  straight: { name: "Odatiy vanna", sizes: ["150×70", "160×70", "170×75", "180×80"], def: "170×75" },
+  corner: { name: "Burchak vanna", sizes: ["120×120", "135×135", "150×150"], def: "150×150" },
+};
+// Jihoz o'lchami: vannada tanlangan turi va o'lchamiga qarab
+export function kindOf(i) {
+  const k = ITEM_KINDS[i.kind];
+  if (i.kind !== "bathtub") return k;
+  const t = BATH_TYPES[i.btype] ? i.btype : "straight";
+  const [w, d] = (BATH_TYPES[t].sizes.includes(i.bsize) ? i.bsize : BATH_TYPES[t].def).split("×").map(Number);
+  return { ...k, w, d, btype: t };
+}
 
 // Chiroq turlari: quvvati bitta chiroq uchun, n bitta nuqtadagi soni
 export const LIGHT_TYPES = {
@@ -85,7 +113,7 @@ export function opening(kind, roomId, side, off, extra = {}) {
 export function item(kind, x, y) {
   const i = { id: uid(), kind, x, y };
   if (kind === "light") i.ltype = "ledpanel";
-  if (kind === "tank") Object.assign(i, { vol: 500, place: "stand", pump: false });
+  if (kind === "tank") Object.assign(i, { vol: "auto", place: "stand", pump: false });
   return i;
 }
 
