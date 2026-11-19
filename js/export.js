@@ -302,35 +302,32 @@ export function exportPdf(rows, price, meta) {
   }
   // 3D ko'rinishlar: uy 6 proeksiyada, har bir xona 4 tomondan
   const shots = meta.shots;
-  if (shots?.house?.length) {
+  // Bitta yotiq sahifaga 2 × 2 tartibda 4 ta katta rasm, har birining tagida nomi
+  const grid4 = (list, title, sub) => {
     newPage(LW, LH2);
-    text("Uyning 3D ko'rinishi", M, y, 14, "F2");
-    y -= 10;
-    const cw = (LW - 2 * M - 2 * 12) / 3, ih = cw * (shots.house[0].h / shots.house[0].w), rowH = ih + 18;
-    shots.house.forEach((s, i) => {
-      const cx = M + (i % 3) * (cw + 12), top = y - Math.floor(i / 3) * rowH;
-      image(s, cx, top - ih - 4, cw, ih);
-      text(s.title, cx, top - ih - 15, 8, "F1", muted);
+    text(title, M, y, 14, "F2");
+    if (sub) text(sub, M + width(title, 14, true) + 14, y, 9, "F1", muted);
+    const gap = 12, cap = 15, top = y - 12, bottom = M + 10;
+    let cw = (LW - 2 * M - gap) / 2, ih = cw * (list[0].h / list[0].w);
+    // Ikki qator sig'masa, rasmlar balandlik bo'yicha kichraytiriladi va o'rtaga suriladi
+    const maxH = (top - bottom - 2 * cap - gap) / 2;
+    if (ih > maxH) { ih = maxH; cw = ih * (list[0].w / list[0].h); }
+    const x0 = (LW - (2 * cw + gap)) / 2;
+    list.forEach((s, i) => {
+      const cx = x0 + (i % 2) * (cw + gap), ty = top - Math.floor(i / 2) * (ih + cap + gap);
+      image(s, cx, ty - ih, cw, ih);
+      text(s.title, cx, ty - ih - 11, 8.5, "F1", muted);
     });
-  }
-  if (shots?.rooms?.length) {
-    const cw = (LW - 2 * M - 3 * 10) / 4, ih = cw * (shots.rooms[0].imgs[0].h / shots.rooms[0].imgs[0].w), blockH = ih + 44;
-    let left = 0;
-    for (const r of shots.rooms) {
-      if (left < blockH) {
-        newPage(LW, LH2);
-        text("Xonalarning 3D ko'rinishi", M, y, 14, "F2");
-        y -= 14; left = y - (M + 6);
-      }
-      text(`${r.name}${(meta.project?.floors || 1) > 1 ? `, ${r.floor + 1}-qavat` : ""}`, M, y - 12, 10, "F2", brand);
-      text(`${r.w} × ${r.d} sm, ${fmtArea(r.w * r.d / 1e4)} m²`, M + width(r.name, 10, true) + 60, y - 12, 8, "F1", muted);
-      r.imgs.forEach((s, i) => {
-        const cx = M + i * (cw + 10);
-        image(s, cx, y - 18 - ih, cw, ih);
-        text(s.title, cx, y - 28 - ih, 7.5, "F1", muted);
-      });
-      y -= blockH; left -= blockH;
+  };
+  if (shots?.house?.length) {
+    const pages3d = Math.ceil(shots.house.length / 4);
+    for (let i = 0; i < shots.house.length; i += 4) {
+      grid4(shots.house.slice(i, i + 4), "Uyning 3D ko'rinishi", pages3d > 1 ? `${i / 4 + 1} / ${pages3d}` : "");
     }
+  }
+  for (const r of shots?.rooms || []) {
+    const name = `${r.name}${(meta.project?.floors || 1) > 1 ? `, ${r.floor + 1}-qavat` : ""}`;
+    grid4(r.imgs, `Xona: ${name}`, `${r.w} × ${r.d} sm, ${fmtArea(r.w * r.d / 1e4)} m²`);
   }
   const header = (firstPage) => {
     newPage();
