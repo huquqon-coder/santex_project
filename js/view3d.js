@@ -512,7 +512,7 @@ export class View3D {
 // Hisobot uchun rasmlar: uyning 6 proeksiyasi va har bir xonaning 4 ko'rinishi.
 // Ekrandan tashqaridagi alohida oynada chiziladi, foydalanuvchining 3D kamerasiga tegmaydi.
 // O'lchami PDF dagi 2 × 2 joyga mos: eni bo'yi taxminan 1,9 ga teng, bosmada ham aniq chiqadi
-export async function snapshots(all, res, { w = 1400, h = 730, onStep } = {}) {
+export async function snapshots(all, res, { w = 1400, h = 730, onStep, sys: only } = {}) {
   const el = document.createElement("div");
   Object.assign(el.style, { position: "fixed", left: "-20000px", top: "0", width: w + "px", height: h + "px" });
   document.body.appendChild(el);
@@ -520,7 +520,7 @@ export async function snapshots(all, res, { w = 1400, h = 730, onStep } = {}) {
   v.renderer.setSize(w, h); v.camera.aspect = w / h; v.camera.updateProjectionMatrix();
   v.scene.background = new THREE.Color(0xf2f5f5);
   const V = (x, y, z) => new THREE.Vector3(x, y, z), tick = () => new Promise((ok) => setTimeout(ok, 0));
-  const sys = { heat: true, elec: true, plumb: true };
+  const sys = { heat: true, elec: true, plumb: true, ...only };
   const out = { house: [], rooms: [] };
   try {
     v.update(all, res, { ...sys, mode: "full", floor: "all" });

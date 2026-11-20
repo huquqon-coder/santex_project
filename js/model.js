@@ -154,7 +154,8 @@ export function emptyProject() {
     items: [],
     prices: {},
     extras: [],
-    hiddenRows: [],    // hisobdan chiqarilgan qatorlar kaliti (masalan, komplektda bor)        // hisobga qo'lda qo'shilgan mahsulot va ishlar: { id, g, name, spec, unit, qty, labor }
+    hiddenRows: [],    // hisobdan chiqarilgan qatorlar kaliti (masalan, komplektda bor)
+    repParts: { heat: true, elec: true, plumb: true, extra: true }, // hisobga kiritiladigan bo'limlar
   };
 }
 

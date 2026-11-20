@@ -53,6 +53,8 @@ h3 { font-size: 16px; }
 [hidden] { display: none !important; }
 #reportWrap { position: absolute; inset: 0; overflow: auto; padding: 16px; display: block; }
 .rephead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.repparts { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 4px 0 10px; padding: 8px 10px; border: 1px solid var(--line); background: var(--panel); }
+.repparts .lbl { font-size: 13px; font-weight: 600; }
 .over { position: absolute; top: 10px; left: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .over .chk { background: var(--panel); border: 1px solid var(--line); padding: 5px 8px; }
 .over select { width: auto; background: var(--panel); }
@@ -180,7 +182,7 @@ input:not([type=checkbox]), select { font: 14px var(--body); padding: 5px 7px; b
   aside { overflow: visible; }
 }
 @media print {
-  .top, #tools, aside, .rephead button, .addrow, .xdel, .hiddenrows { display: none !important; }
+  .top, #tools, aside, .rephead button, .addrow, .xdel, .hiddenrows, .repparts { display: none !important; }
   .rep input { border: 0; background: none; }
   .printbrand { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 2px solid #9c5219; padding-bottom: 8px; margin-bottom: 12px; font-size: 11px; color: #56666d; }
   .repacts { display: none !important; }

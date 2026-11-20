@@ -341,10 +341,24 @@ function renderSide() {
 }
 
 let repRows = [];
+// Hisob bo'limlari: foydalanuvchi faqat keraklilarini hisobga oladi
+const REP_PARTS = [["heat", "Isitish"], ["elec", "Elektr"], ["plumb", "Santexnika"], ["extra", "Qo'lda qo'shilganlar"]];
+const partOn = (p, k) => p.repParts?.[k] !== false;
+const partNames = (p) => REP_PARTS.filter(([k]) => partOn(p, k)).map(([, n]) => n);
+function renderParts() {
+  const p = ctx.p;
+  $("repParts").innerHTML = `<span class="lbl">Hisobga kiritish:</span>` + REP_PARTS.map(([k, n]) =>
+    `<label class="chk"><input type="checkbox" data-part="${k}" ${partOn(p, k) ? "checked" : ""}> ${n}</label>`).join("");
+}
 function renderRep() {
   const { p, res } = ctx;
+  renderParts();
   const extras = (p.extras || []).map((x) => ({ g: x.g || EXTRA_GROUP, k: "x_" + x.id, name: x.name, spec: x.spec, unit: x.unit, qty: x.qty, labor: !!x.labor, extra: x.id }));
-  const all = [...heatingBom(p, res.heat), ...electricBom(p, res.elec), ...plumbingBom(p, res.plumb), ...extras];
+  const on = (k) => partOn(p, k);
+  const all = [
+    ...(on("heat") ? heatingBom(p, res.heat) : []), ...(on("elec") ? electricBom(p, res.elec) : []),
+    ...(on("plumb") ? plumbingBom(p, res.plumb) : []), ...(on("extra") ? extras : []),
+  ];
   const off = new Set(p.hiddenRows || []);
   const rows = all.filter((r) => !off.has(r.k));
   repRows = rows;
@@ -510,20 +524,27 @@ const exportRep = async (kind) => {
   try {
     if (kind === "pdf") {
       // Reja va 3D rasmlar bilan: rasmlar alohida, ko'rinmaydigan oynada chiziladi
-      const meta = { name: ctx.p.name, project: ctx.p };
+      const sys = { heat: partOn(ctx.p, "heat"), elec: partOn(ctx.p, "elec"), plumb: partOn(ctx.p, "plumb") };
+      const meta = { name: ctx.p.name, project: ctx.p, parts: partNames(ctx.p) };
       if (fv(ctx.p, 0).rooms.length || ctx.p.rooms.length) {
         const { snapshots } = await import("./view3d.js");
         const total = 6 + ctx.p.rooms.filter((r) => floorOf(r) < (ctx.p.floors || 1)).length * 4;
         let done = 0;
         btn.textContent = `3D 0/${total}`;
-        meta.shots = await snapshots(ctx.p, ctx.res, { onStep: () => (btn.textContent = `3D ${++done}/${total}`) });
+        meta.shots = await snapshots(ctx.p, ctx.res, { sys, onStep: () => (btn.textContent = `3D ${++done}/${total}`) });
       }
       btn.textContent = "PDF…";
       await exportPdf(repRows, price, meta);
-    } else await exportXlsx(repRows, price, { name: ctx.p.name });
+    } else await exportXlsx(repRows, price, { name: ctx.p.name, parts: partNames(ctx.p) });
   } catch (e) { console.error(e); alert("Fayl tayyorlanmadi: " + e.message); }
   finally { btn.disabled = false; btn.textContent = label; }
 };
+$("repParts").addEventListener("change", (e) => {
+  const k = e.target.dataset.part; if (!k) return;
+  ctx.commit();
+  ctx.p.repParts = { ...(ctx.p.repParts || {}), [k]: e.target.checked };
+  ctx.changed();
+});
 $("xlsx").onclick = () => exportRep("xlsx");
 $("pdf").onclick = () => exportRep("pdf");
 document.querySelectorAll("#view3dWrap input").forEach((c) => c.addEventListener("change", () => show3D()));

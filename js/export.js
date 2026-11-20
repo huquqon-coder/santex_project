@@ -80,6 +80,7 @@ export async function exportXlsx(rows, price, meta) {
   row((r) => str(`A${r}`, BRAND.name, 1), 32); merges.push(`A1:F1`);
   row((r) => str(`A${r}`, BRAND.tagline, 6)); merges.push(`A2:F2`);
   row((r) => str(`A${r}`, `Loyiha: ${meta.name}`, 7) + str(`F${r}`, today(), 6));
+  if (meta.parts) row((r) => str(`A${r}`, `Hisobga kiritilgan: ${meta.parts.join(", ") || "hech narsa"}`, 6));
   row(() => "");
   const hdr = row((r) => ["Nomi", "O'lchami", "Miqdori", "Birligi", "Narxi, so'm", "Summa, so'm"].map((h, i) => str(`${"ABCDEF"[i]}${r}`, h, 3)).join(""), 22);
   const first = n + 1;
@@ -335,6 +336,7 @@ export function exportPdf(rows, price, meta) {
       text("Materiallar va ish narxi hisobi", M, y, 14, "F2");
       y -= 16;
       text(`Loyiha: ${meta.name}`, M, y, 9.5, "F1", muted);
+      if (meta.parts) { y -= 13; text(`Hisobga kiritilgan: ${meta.parts.join(", ") || "hech narsa"}`, M, y, 9.5, "F1", muted); }
       y -= 20;
       // Asosiy ko'rsatkichlar
       const kw = (PW - 2 * M) / 3;
