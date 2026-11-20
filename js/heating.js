@@ -189,7 +189,7 @@ export function computeHeating(p) {
     const loops = Math.max(1, Math.ceil(x.ufh.len / (MAX_LOOP - 2 * Math.min(feed, 30))));
     const pipe = x.ufh.len + loops * 2 * feed;
     m.load += x.ufh.power; m.ports += loops; m.ufhPorts += loops;
-    out.ufh.push({ room: x.r, floor: x.floor, ...x.ufh, loops, feed, pipe, manifold: m.id, pattern: meander(x.r, x.ufh.step, loops) });
+    out.ufh.push({ room: x.r, floor: x.floor, ...x.ufh, loops, feed, pipe, manifold: m.id, pattern: meander(x.r, x.ufh.step, loops, x.ufh.blocks) });
   }
   if (collector) for (const r of rads) {
     const m = nearest(r.floor, r.x, r.y);

@@ -1,6 +1,10 @@
 // 3D ko'rinish. Ma'lumot rejadan olinadi, o'lchamlar metrga o'tkaziladi.
 import { ITEM_KINDS, LIGHT_TYPES, ROOM_TYPES, TANK_DIAM, WALL_COLOR, kindOf, mountH, tankBase, tankVol } from "./model.js";
-import { pumped } from "./plumbing.js";
+import { FIX, hotOf, pumped } from "./plumbing.js";
+
+// Pol ostidagi qatlamlar, m (toza pol sathi 0): iliq pol stяжkada, suv quvurlari undan pastroqda,
+// kanalizatsiya eng pastda. Isitish magistrali pol ustida plintus bo'ylab qoladi.
+const Y_UFH = -0.035, Y_WATER = -0.07, Y_SEWER = { 50: -0.14, 110: -0.22 };
 import { bounds, cornerAngle, floorList, floorOf, fv, nearestWall, openingRect, roomAt, sideInfo, wallBoxes } from "./geometry.js";
 import * as P from "./models3d.js";
 
@@ -199,8 +203,8 @@ export class View3D {
     }
     if (opt.elec) for (const q of res.elec.risers || []) draw(q, H - 0.05, this.mat.cable, 0.009);
     if (opt.plumb) for (const q of res.plumb.risers || []) {
-      if (q.kind === "sewer") draw(q, 0.05, this.mat.sewer, 0.055, 12);
-      else draw(q, 0.3, q.kind === "cold" ? this.mat.blue : this.mat.hot, 0.012, q.kind === "cold" ? -7 : 7);
+      if (q.kind === "sewer") draw(q, Y_SEWER[110], this.mat.sewer, 0.055, 12);
+      else draw(q, Y_WATER, q.kind === "cold" ? this.mat.blue : this.mat.hot, 0.012, q.kind === "cold" ? -7 : 7);
     }
   }
   // Yopmada zina teshigini qoldirib plita chizadi
@@ -232,6 +236,9 @@ export class View3D {
     const heat = res.heat;
     const pitD = pitRoom ? m(p.pit) : 0;
     const under = f > 0 ? slab : 0;
+    // Tizimlar ko'rinayotganda pol yarim shaffof: uning ostidagi quvurlar ko'rinadi
+    const see = !ghost && mode !== "full" && (opt.heat || opt.plumb);
+    const seeThrough = (mt) => { mt.transparent = true; mt.opacity = 0.5; mt.depthWrite = false; return mt; };
 
     for (const b of wallBoxes(p)) this.box(m(b.x), -under, m(b.y), m(b.w), wallH + under, m(b.d), W);
     for (const o of p.openings) {
@@ -257,10 +264,11 @@ export class View3D {
         const t = this.tex[key].clone(); t.needsUpdate = true; t.repeat.set(m(r.w) / 1.2, m(r.d) / 1.2);
         mat = new THREE.MeshStandardMaterial({ map: t, roughness: key === "wood" ? 0.7 : 0.35 });
       }
+      if (see) mat = seeThrough(mat === this.mat.cold ? mat.clone() : mat);
       if (f === 0) this.box(m(r.x), lowered - 0.02, m(r.y), m(r.w), 0.02, m(r.d), mat);
       else this.slabPlate([r], -0.02, 0.02, mat, all, f);
     }
-    if (f > 0) this.slabPlate(p.rooms, -slab, slab - 0.02, ghost ? this.mat.ghost : this.mat.cold, all, f);
+    if (f > 0) this.slabPlate(p.rooms, -slab, slab - 0.02, ghost ? this.mat.ghost : see ? seeThrough(this.mat.cold.clone()) : this.mat.cold, all, f);
     // Qozon chuquri: tashqi devorlar pastga davom etadi, tushish zinasi bilan
     if (pitRoom) {
       const r = pitRoom, t = m(p.wallT), [x, y, w, d] = [m(r.x), m(r.y), m(r.w), m(r.d)];
@@ -298,7 +306,7 @@ export class View3D {
 
     const here = (q) => floorOf(q) === f;
     this.items(p, res, opt, wallH, f, H + slab);
-    if (opt.heat) this.heating(p, heat, H, pitD, f, all);
+    if (opt.heat) this.heating(p, heat, H, pitD, f, all, opt);
     if (opt.elec) {
       for (const s of res.elec.segs.filter(here)) this.run(s.pts, wallH - 0.05, s.branch ? 0.006 : 0.009, this.mat.cable);
       for (const b of res.elec.boxes.filter(here)) {
@@ -307,16 +315,48 @@ export class View3D {
       }
     }
     if (opt.plumb) {
-      for (const s of res.plumb.cold.filter(here)) this.run(s.pts, 0.3, 0.012, this.mat.blue, -7);
-      for (const s of res.plumb.hot.filter(here)) this.run(s.pts, 0.3, 0.012, this.mat.hot, 7);
-      for (const s of res.plumb.sewer.filter(here)) this.run(s.pts, 0.05, s.dn === 110 ? 0.055 : 0.03, this.mat.sewer);
-      for (const s of (res.plumb.fill || []).filter(here)) this.run(s.pts, 0.25, 0.012, this.mat.blue);
-      for (const q of (res.plumb.cleanouts || []).filter(here)) this.place(P.cleanout(), m(q.x), 0.05, m(q.y));
-      const v = res.plumb.vent;
+      const w = res.plumb;
+      for (const s of w.cold.filter(here)) this.run(s.pts, Y_WATER, 0.012, this.mat.blue, -7);
+      for (const s of w.hot.filter(here)) this.run(s.pts, Y_WATER, 0.012, this.mat.hot, 7);
+      for (const s of w.sewer.filter(here)) this.run(s.pts, Y_SEWER[s.dn] ?? Y_SEWER[50], s.dn === 110 ? 0.055 : 0.03, this.mat.sewer);
+      for (const s of (w.fill || []).filter(here)) this.run(s.pts, Y_WATER, 0.012, this.mat.blue);
+      this.fixtureLinks(p, w, f);
+      for (const q of (w.cleanouts || []).filter(here)) this.place(P.cleanout(), m(q.x), 0, m(q.y));
+      const v = w.vent;
       if (v && here(v)) {
         const vx = m(v.x + 22), vz = m(v.y + 22), top = 0.05 + v.len - (v.roof ? 0 : 0.3);
-        this.tube(new THREE.Vector3(vx, 0.05, vz), new THREE.Vector3(vx, top, vz), 0.055, this.mat.sewer);
+        this.tube(new THREE.Vector3(vx, Y_SEWER[110], vz), new THREE.Vector3(vx, top, vz), 0.055, this.mat.sewer);
         this.place(P.ventCap(!v.roof), vx, top, vz);
+      }
+    }
+  }
+  // Pol ostidagi quvurdan jihozgacha: suv devor ichida tik ko'tariladi, kanalizatsiya sifondan pastga tushadi
+  fixtureLinks(p, w, f) {
+    const V = (x, y, z) => new THREE.Vector3(m(x), y, m(z));
+    const hasHot = w.hot.some((s) => floorOf(s) === f);
+    const rise = (x, y, h, off, mat) => {
+      const n = nearestWall(p, x, y), tx = n.iz, tz = -n.ix;
+      const wx = n.x + n.ix * 4 + tx * off, wz = n.y + n.iz * 4 + tz * off;
+      this.tube(V(x + off, Y_WATER, y + off), V(wx, Y_WATER, wz), 0.01, mat);
+      this.tube(V(wx, Y_WATER, wz), V(wx, h, wz), 0.01, mat);
+    };
+    for (const i of p.items.filter((q) => floorOf(q) === f)) {
+      if (i.kind === "heater") {
+        rise(i.x, i.y, 0.9, -7, this.mat.blue);
+        if (hasHot) rise(i.x, i.y, 0.9, 7, this.mat.hot);
+        continue;
+      }
+      const k = FIX[i.kind];
+      if (!k) continue;
+      if (k.cold) rise(i.x, i.y, k.conn, -7, this.mat.blue);
+      if (hasHot && hotOf(i)) rise(i.x, i.y, k.conn, 7, this.mat.hot);
+      if (w.sewer.some((s) => floorOf(s) === f)) this.tube(V(i.x, Y_SEWER[k.drain], i.y), V(i.x, 0, i.y), k.drain === 110 ? 0.05 : 0.025, this.mat.sewer);
+    }
+    // Ø50 shoxobchalar Ø110 quvurga tik tushib ulanadi
+    const big = w.sewer.filter((s) => floorOf(s) === f && s.dn === 110).flatMap((s) => s.pts);
+    for (const s of w.sewer.filter((q) => floorOf(q) === f && q.dn !== 110)) {
+      for (const q of [s.pts[0], s.pts[s.pts.length - 1]]) {
+        if (big.some((b) => Math.abs(b[0] - q[0]) < 1 && Math.abs(b[1] - q[1]) < 1)) this.tube(V(q[0], Y_SEWER[50], q[1]), V(q[0], Y_SEWER[110], q[1]), 0.03, this.mat.sewer);
       }
     }
   }
@@ -369,15 +409,15 @@ export class View3D {
             this.box(x - 0.35, -0.3, z - 0.35, 0.7, 0.33, 0.7, this.mat.cold);
           }
           // Bochkadan pastga tushuvchi yoki yer ostidan chiquvchi quvur va nasos stansiyasi
-          if (base > 0.3) this.tube(new THREE.Vector3(x + d / 2 + 0.08, base + 0.08, z), new THREE.Vector3(x + d / 2 + 0.08, 0.3, z), 0.016, this.mat.blue);
-          if (under) this.tube(new THREE.Vector3(x + d / 2 - 0.1, base + 0.2, z), new THREE.Vector3(x + d / 2 - 0.1, 0.3, z), 0.016, this.mat.blue);
+          if (base > 0.3) this.tube(new THREE.Vector3(x + d / 2 + 0.08, base + 0.08, z), new THREE.Vector3(x + d / 2 + 0.08, Y_WATER, z), 0.016, this.mat.blue);
+          if (under) this.tube(new THREE.Vector3(x + d / 2 - 0.1, base + 0.2, z), new THREE.Vector3(x + d / 2 - 0.1, Y_WATER, z), 0.016, this.mat.blue);
           if (pumped(i)) this.place(P.pumpStation(), x + d / 2 + 0.5, 0, z);
           break;
         }
       }
     }
   }
-  heating(p, h, H, pitD, f, all) {
+  heating(p, h, H, pitD, f, all, opt = {}) {
     const top = h.topSupply, YA = H + 0.15, ySup = top ? YA : 0.17, yRet = 0.08;
     for (const s of h.segs.filter((q) => floorOf(q) === f)) {
       const r = Math.min(0.035, s.id / 2000 + 0.006);
@@ -399,15 +439,16 @@ export class View3D {
       this.place(P.ballValve(), ax, yT + 0.1, az, ix, iz);
       this.place(P.ballValve(), bx, yB - 0.03, bz, ix, iz);
     }
-    // Iliq pol konturlari pol ustida chiziq bo'lib, kollektor yo'llari ingichka quvur bo'lib chiziladi
-    for (const u of (h.ufh || []).filter((q) => q.floor === f)) {
-      for (const pts of u.pattern) {
-        const g = new THREE.BufferGeometry().setFromPoints(pts.map((q) => new THREE.Vector3(m(q[0]), 0.012, m(q[1]))));
-        this.group.add(new THREE.Line(g, this.ufhLine || (this.ufhLine = new THREE.LineBasicMaterial({ color: 0xd8392c }))));
+    // Iliq pol konturlari stяжka ichida, yarim shaffof pol ostida ko'rinadi; kollektor yo'llari ham shu qatlamda
+    if (opt.ufh !== false) {
+      for (const u of (h.ufh || []).filter((q) => q.floor === f)) {
+        const v = u.pattern.flatMap((pts) => pts.slice(1).flatMap((q, i) => [pts[i], q])).map((q) => new THREE.Vector3(m(q[0]), Y_UFH, m(q[1])));
+        const g = new THREE.BufferGeometry().setFromPoints(v);
+        this.group.add(new THREE.LineSegments(g, this.ufhLine || (this.ufhLine = new THREE.LineBasicMaterial({ color: 0xff3b1f }))));
       }
     }
     for (const s of (h.starSegs || []).filter((q) => floorOf(q) === f)) {
-      this.run(s.pts, 0.03, 0.008, this.mat.hot, -3); this.run(s.pts, 0.03, 0.008, this.mat.blue, 3);
+      this.run(s.pts, Y_UFH, 0.008, this.mat.hot, -3); this.run(s.pts, Y_UFH, 0.008, this.mat.blue, 3);
     }
     for (const mf of (h.manifolds || []).filter((q) => q.floor === f)) {
       const w = nearestWall(p, mf.x, mf.y);

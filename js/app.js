@@ -381,7 +381,7 @@ async function show3D(frame) {
   try {
     if (!view3d) { const { View3D } = await import("./view3d.js"); view3d = new View3D($("gl")); }
     if (frame && !view3dFramed) { view3d.frame(ctx.p); view3dFramed = true; }
-    view3d.update(ctx.p, ctx.res, { ...opt3d, floor: $("o-floor").value || "all", heat: $("o-heat").checked, elec: $("o-elec").checked, plumb: $("o-plumb").checked });
+    view3d.update(ctx.p, ctx.res, { ...opt3d, floor: $("o-floor").value || "all", heat: $("o-heat").checked, ufh: $("o-ufh").checked, elec: $("o-elec").checked, plumb: $("o-plumb").checked });
   } catch (e) {
     console.error(e);
     $("view3dErr").textContent = "3D ishga tushmadi: " + e.message;
