@@ -3,7 +3,7 @@
 import { ROOM_TYPES, WALL_MATERIALS } from "./model.js";
 import { bounds, floorList, fv, openingRect } from "./geometry.js";
 
-export const BRAND = { name: "Projecty", tagline: "Uy loyihasi va muhandislik tizimlari", site: "homeprojecty.netlify.app", color: "9C5219", dark: "172126" };
+export const BRAND = { name: "Projecty", tagline: "Uy loyihasi va muhandislik tizimlari", site: "santex-project.netlify.app", color: "9C5219", dark: "172126" };
 
 // Hisob qatorlarini guruhlab, summalari bilan tayyorlaydi
 export function reportTable(rows, price) {
